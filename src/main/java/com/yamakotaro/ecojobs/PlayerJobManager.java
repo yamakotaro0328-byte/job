@@ -30,7 +30,10 @@ public class PlayerJobManager {
    private final Set<UUID> dirtyUuids = new HashSet<>();
    private final Map<String, PlayerJobManager.CachedTop> topCache = new HashMap<>();
    private final Map<UUID, Map<String, Double>> pendingEarnings = new HashMap<>();
+   private final Map<UUID, HourlyEarnings> hourlyEarnings = new HashMap<>();
    private boolean noEconomyWarned;
+   private QuestManager questManager;
+   private JobBossBar bossBar;
 
    public PlayerJobManager(
       EcoJobsPlugin plugin,
@@ -51,6 +54,14 @@ public class PlayerJobManager {
       this.boosterManager = boosterManager;
       this.perkManager = perkManager;
       this.data.putAll(storage.loadAll());
+   }
+
+   public void setQuestManager(QuestManager questManager) {
+      this.questManager = questManager;
+   }
+
+   public void setBossBar(JobBossBar bossBar) {
+      this.bossBar = bossBar;
    }
 
    public boolean isJoined(UUID uuid, String jobId) {
@@ -176,6 +187,7 @@ public class PlayerJobManager {
             progress.setXp(0.0);
             progress.setPrestige(progress.getPrestige() + 1);
             this.markDirty(player.getUniqueId());
+            this.runRewardCommands("reward-commands.prestige", player, job.getId(), progress.getLevel(), progress.getPrestige());
             Bukkit.getServer()
                .sendMessage(
                   this.messages
@@ -190,13 +202,21 @@ public class PlayerJobManager {
    }
 
    public void reward(Player player, String jobId, String actionType, String key, double scale) {
+      this.reward(player, jobId, actionType, key, scale, 1.0);
+   }
+
+   /** Same as {@link #reward(Player, String, String, String, double)}, with the money scaled by payMultiplier (anti-farm). */
+   public void reward(Player player, String jobId, String actionType, String key, double scale, double payMultiplier) {
       JobDefinition job = this.jobManager.get(jobId);
       if (job != null) {
          ActionReward actionReward = job.getReward(actionType, key);
          if (actionReward != null) {
             PlayerJobProgress progress = this.joinedJobs(player.getUniqueId()).get(job.getId());
             if (progress != null) {
-               this.applyReward(player, job, progress, actionReward.moneyFor(scale), actionReward.xpFor(scale));
+               this.applyReward(player, job, progress, actionReward.moneyFor(scale) * payMultiplier, actionReward.xpFor(scale) * payMultiplier);
+               if (this.questManager != null) {
+                  this.questManager.onAction(player, job.getId(), actionType, key, scale);
+               }
             }
          }
       }
@@ -234,6 +254,7 @@ public class PlayerJobManager {
          + this.perkManager.payBonusMultiplier(job, effectiveLevel);
       double money = baseMoney * levelMultiplier * this.jobOverrides.payMultiplier(job.getId()) * this.boosterManager.moneyMultiplierFor(job.getId());
       double xp = baseXp * this.boosterManager.xpMultiplierFor(job.getId());
+      money = this.applyHourlyCap(player, money);
       if (money > 0.0) {
          Economy economy = this.economyHolder.get();
          if (economy != null) {
@@ -250,6 +271,7 @@ public class PlayerJobManager {
       if (xp > 0.0) {
          progress.setXp(progress.getXp() + xp);
          this.checkLevelUp(player, job, progress);
+         this.showBossBar(player, job.getId(), progress);
       }
 
       int bonusVanillaXp = this.perkManager.xpOrbBonus(job, effectiveLevel);
@@ -258,6 +280,80 @@ public class PlayerJobManager {
       }
 
       this.markDirty(player.getUniqueId());
+   }
+
+   /**
+    * Pays a flat bonus (daily quests etc.) outside the per-action formula: no level/booster
+    * multipliers and no hourly cap. jobId may be null for money-only bonuses.
+    */
+   public void grantBonus(Player player, String jobId, double money, double xp) {
+      if (money > 0.0) {
+         Economy economy = this.economyHolder.get();
+         if (economy != null) {
+            economy.depositPlayer(player, money);
+         }
+      }
+
+      JobDefinition job = jobId == null ? null : this.jobManager.get(jobId);
+      PlayerJobProgress progress = job == null ? null : this.joinedJobs(player.getUniqueId()).get(job.getId());
+      if (progress != null && xp > 0.0) {
+         progress.setXp(progress.getXp() + xp);
+         this.checkLevelUp(player, job, progress);
+         this.showBossBar(player, job.getId(), progress);
+         this.markDirty(player.getUniqueId());
+      }
+   }
+
+   private void showBossBar(Player player, String jobId, PlayerJobProgress progress) {
+      if (this.bossBar != null) {
+         boolean maxed = progress.getLevel() >= this.jobManager.maxLevel();
+         this.bossBar.show(player, jobId, progress.getLevel(), progress.getXp(), this.xpToNextLevel(progress.getLevel()), maxed);
+      }
+   }
+
+   /** anti-farm.max-money-per-hour: once a player has earned this much from job actions in the current clock hour, further actions pay xp only. */
+   private double applyHourlyCap(Player player, double money) {
+      double cap = this.plugin.config().getDouble("anti-farm.max-money-per-hour", 0.0);
+      if (cap <= 0.0 || money <= 0.0 || player.hasPermission("ecojobs.bypass.hourlycap")) {
+         return money;
+      } else {
+         long hour = System.currentTimeMillis() / 3600000L;
+         HourlyEarnings earnings = this.hourlyEarnings.get(player.getUniqueId());
+         if (earnings == null || earnings.hour != hour) {
+            earnings = new HourlyEarnings(hour);
+            this.hourlyEarnings.put(player.getUniqueId(), earnings);
+         }
+
+         double allowed = Math.max(0.0, Math.min(money, cap - earnings.earned));
+         earnings.earned += allowed;
+         if (allowed < money && !earnings.warned) {
+            earnings.warned = true;
+            player.sendMessage(this.messages.get("jobs.hourly-cap-reached", Map.of("cap", MoneyFormat.format(cap))));
+         }
+
+         return allowed;
+      }
+   }
+
+   public double hourlyEarned(UUID uuid) {
+      HourlyEarnings earnings = this.hourlyEarnings.get(uuid);
+      return earnings != null && earnings.hour == System.currentTimeMillis() / 3600000L ? earnings.earned : 0.0;
+   }
+
+   /** Runs the console commands configured under the given path, e.g. reward-commands.levels.10. */
+   private void runRewardCommands(String path, Player player, String jobId, int level, int prestige) {
+      for (String command : this.plugin.config().getStringList(path)) {
+         String resolved = command.replace("{player}", player.getName())
+            .replace("{uuid}", player.getUniqueId().toString())
+            .replace("{job}", jobId)
+            .replace("{level}", String.valueOf(level))
+            .replace("{prestige}", String.valueOf(prestige));
+         if (resolved.startsWith("/")) {
+            resolved = resolved.substring(1);
+         }
+
+         Bukkit.dispatchCommand(Bukkit.getConsoleSender(), resolved);
+      }
    }
 
    private void queueEarnedActionBar(UUID uuid, String jobId, double money) {
@@ -298,6 +394,9 @@ public class PlayerJobManager {
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 1.0F);
          }
 
+         this.runRewardCommands("reward-commands.every-level", player, job.getId(), progress.getLevel(), progress.getPrestige());
+         this.runRewardCommands("reward-commands.levels." + progress.getLevel(), player, job.getId(), progress.getLevel(), progress.getPrestige());
+         this.runRewardCommands("reward-commands.jobs." + job.getId() + "." + progress.getLevel(), player, job.getId(), progress.getLevel(), progress.getPrestige());
          if (this.jobManager.milestoneLevels().contains(progress.getLevel())) {
             this.awardMilestone(player, job, progress.getLevel());
          }
@@ -427,7 +526,21 @@ public class PlayerJobManager {
 
    public void close() {
       this.save();
+      if (this.questManager != null) {
+         this.questManager.save();
+      }
+
       this.storage.close();
+   }
+
+   private static final class HourlyEarnings {
+      final long hour;
+      double earned;
+      boolean warned;
+
+      HourlyEarnings(long hour) {
+         this.hour = hour;
+      }
    }
 
    private record CachedTop(long computedAtMillis, List<PlayerJobManager.TopEntry> sorted) {

@@ -7,9 +7,11 @@ import org.bukkit.entity.Player;
 public class EcoJobsPlaceholders extends PlaceholderExpansion {
    private final EcoJobsPlugin plugin;
    private final PlayerJobManager playerJobManager;
+   private final QuestManager questManager;
 
-   public EcoJobsPlaceholders(EcoJobsPlugin plugin, PlayerJobManager playerJobManager) {
+   public EcoJobsPlaceholders(EcoJobsPlugin plugin, PlayerJobManager playerJobManager, QuestManager questManager) {
       this.plugin = plugin;
+      this.questManager = questManager;
       this.playerJobManager = playerJobManager;
    }
 
@@ -37,6 +39,18 @@ public class EcoJobsPlaceholders extends PlaceholderExpansion {
          return this.topPlaceholder(parts[1], parts[2], parts[3]);
       } else if (player == null) {
          return null;
+      } else if (parts.length == 2 && parts[0].equals("quests")) {
+         if (this.questManager == null) {
+            return "0";
+         }
+
+         return switch (parts[1]) {
+            case "completed" -> String.valueOf(this.questManager.completedCount(player));
+            case "total" -> String.valueOf(this.questManager.questsFor(player).size());
+            default -> null;
+         };
+      } else if (parts.length == 2 && parts[0].equals("hourly") && parts[1].equals("earned")) {
+         return MoneyFormat.format(this.playerJobManager.hourlyEarned(player.getUniqueId()));
       } else if (parts.length == 3 && parts[0].equals("xp") && parts[1].equals("max")) {
          PlayerJobProgress progress = this.playerJobManager.allProgress(player.getUniqueId()).get(parts[2]);
          return progress == null ? "0" : String.format("%.0f", this.playerJobManager.xpToNextLevel(progress.getLevel()));

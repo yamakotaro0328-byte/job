@@ -1,17 +1,20 @@
 package com.yamakotaro.ecojobs.listeners;
 
+import com.yamakotaro.ecojobs.EcoJobsPlugin;
 import com.yamakotaro.ecojobs.JobDefinition;
 import com.yamakotaro.ecojobs.JobManager;
 import com.yamakotaro.ecojobs.PlayerJobManager;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
 import org.bukkit.event.entity.EntityBreedEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
@@ -23,12 +26,14 @@ import org.bukkit.event.player.PlayerShearEntityEvent;
 import org.bukkit.event.player.PlayerFishEvent.State;
 
 public class EntityJobListener implements Listener {
+   private final EcoJobsPlugin plugin;
    private final PlayerJobManager jobs;
    private final JobManager jobManager;
    private final EvenMoreFishBridge evenMoreFish;
    private final Map<UUID, Map<UUID, Long>> recentPlayerKills = new HashMap<>();
 
-   public EntityJobListener(PlayerJobManager jobs, JobManager jobManager, EvenMoreFishBridge evenMoreFish) {
+   public EntityJobListener(EcoJobsPlugin plugin, PlayerJobManager jobs, JobManager jobManager, EvenMoreFishBridge evenMoreFish) {
+      this.plugin = plugin;
       this.jobs = jobs;
       this.jobManager = jobManager;
       this.evenMoreFish = evenMoreFish;
@@ -41,11 +46,26 @@ public class EntityJobListener implements Listener {
       Player killer = event.getEntity().getKiller();
       if (killer != null) {
          String type = event.getEntityType().name();
-         this.jobs.reward(killer, "slayer", "kill-boss", type, 1.0);
-         this.jobs.reward(killer, "hunter", "kill-mob", type, 1.0);
-         if (this.isListedHostile(type) && this.wasRangedKill(event.getEntity().getLastDamageCause())) {
-            this.jobs.reward(killer, "archer", "kill-mob-ranged", type, 1.0);
+         double multiplier = this.spawnReasonMultiplier(event.getEntity().getEntitySpawnReason());
+         if (multiplier <= 0.0) {
+            return;
          }
+
+         this.jobs.reward(killer, "slayer", "kill-boss", type, 1.0, multiplier);
+         this.jobs.reward(killer, "hunter", "kill-mob", type, 1.0, multiplier);
+         if (this.isListedHostile(type) && this.wasRangedKill(event.getEntity().getLastDamageCause())) {
+            this.jobs.reward(killer, "archer", "kill-mob-ranged", type, 1.0, multiplier);
+         }
+      }
+   }
+
+   /** anti-farm.spawn-reason-multipliers: e.g. SPAWNER: 0.25 pays a quarter for mob-farm kills (money and xp). */
+   private double spawnReasonMultiplier(SpawnReason reason) {
+      if (reason == null) {
+         return 1.0;
+      } else {
+         ConfigurationSection section = this.plugin.config().getConfigurationSection("anti-farm.spawn-reason-multipliers");
+         return section != null && section.contains(reason.name()) ? section.getDouble(reason.name()) : 1.0;
       }
    }
 

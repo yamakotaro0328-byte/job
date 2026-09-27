@@ -93,6 +93,64 @@ auto-smelt-map:
 # 動物撃ちは、いずれもコード側で対策済み(設定不要)。
 anti-farm:
   player-kill-cooldown-minutes: 30
+  # Pay multiplier (money and xp) for mobs by how they spawned - stops AFK mob farms from
+  # printing money. Reasons are CreatureSpawnEvent.SpawnReason names; unlisted reasons pay 1.0,
+  # 0 pays nothing. (日本語) 湧き方ごとの報酬倍率(お金・経験値)。放置トラップ対策。
+  # 未記載の湧き方は1.0、0で報酬なし。
+  spawn-reason-multipliers:
+    SPAWNER: 0.25
+    TRIAL_SPAWNER: 0.5
+    SPAWNER_EGG: 0.0
+    SLIME_SPLIT: 0.25
+    BUILD_IRONGOLEM: 0.0
+    BUILD_SNOWMAN: 0.0
+    BUILD_WITHER: 1.0
+  # Max money one player can earn from job actions per clock hour (0 = unlimited). Job xp is
+  # never capped; daily-quest bonuses bypass it. ecojobs.bypass.hourlycap skips it.
+  # (日本語) 1時間あたりに行動報酬で稼げるお金の上限(0で無制限)。経験値は制限されず、
+  # デイリークエストの報酬も対象外。ecojobs.bypass.hourlycap 権限で無視できる。
+  max-money-per-hour: 0
+
+# Daily quests: each player gets per-day tasks drawn from the jobs they've joined, e.g. "Miner:
+# break Iron ore x40". Completing one pays (normal pay for that work) x reward-multiplier on top of
+# the normal pay, plus job xp. Stored in quests.yml. /jobs quests shows them.
+# (日本語) デイリークエスト: 加入中のジョブから毎日お題が出る(例: 採掘工: 鉄鉱石を壊す x40)。
+# 達成すると、その作業の通常報酬 × reward-multiplier がボーナスとして追加で入る(経験値も)。
+# quests.yml に保存。/jobs quests で確認。
+quests:
+  enabled: true
+  per-day: 3
+  # Target amount ~= target-value / (money per action), +-25% and clamped to min/max-amount.
+  # (日本語) 目標数 ≒ target-value ÷ 1回の報酬額 (±25%、min/max-amountの範囲に収める)。
+  target-value: 400
+  min-amount: 5
+  max-amount: 128
+  reward-multiplier: 2.0
+  all-complete-bonus-money: 500
+  reset-timezone: Asia/Tokyo
+  excluded-actions: [kill-player, catch-emf-fish]
+
+# Boss bar showing the job's xp progress whenever job xp is earned.
+# (日本語) ジョブ経験値を得たときに進行度をボスバーで表示する。
+bossbar:
+  enabled: true
+  hide-after-seconds: 4
+  # PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE
+  color: GREEN
+
+# Console commands run on level-up / prestige. Placeholders: {player} {uuid} {job} {level} {prestige}
+# (日本語) レベルアップ・プレステージ時にコンソールから実行するコマンド。
+reward-commands:
+  every-level: []
+  # Any job reaching the given level. (日本語) どのジョブでも指定レベル到達時。
+  levels:
+    50: []
+    100: []
+  # Only a specific job reaching the given level. (日本語) 特定ジョブの指定レベル到達時。
+  jobs:
+    miner:
+      100: []
+  prestige: []
 
 # Every other job: a map of action-type -> (material/entity name, or "default") -> {money, xp}.
 # Material/entity names are the same names used in Java's Material/EntityType enums (as shown in
@@ -393,11 +451,12 @@ messages:
       player-not-found: "&cPlayer '{player}' not found."
       reloaded: "&aEcoJobs config reloaded."
     jobs:
-      usage: "&cUsage: /jobs <join|leave|list|stats|top|menu|info|prestige|admin|booster|reload> [args]"
+      usage: "&cUsage: /jobs <join|leave|list|stats|top|menu|info|prestige|quests|admin|booster|reload> [args]"
       page-footer: "&7--- Page {page}/{pages} - add a page number to see more ---"
       unknown-job: "&cUnknown job '{job}'. Use /jobs list to see available jobs."
       job-disabled: "&cThe {job} job is currently disabled by an admin."
       already-joined: "&cYou're already in the {job} job."
+      hourly-cap-reached: "&eYou've hit this hour's job pay cap ({cap}). You still earn job xp, and pay resumes next hour."
       not-joined: "&cYou're not in the {job} job."
       max-jobs-reached: "&cYou can only be in {max} jobs at once. Leave one first with /jobs leave <job>."
       joined: "&aJoined the {job} job!"
@@ -505,6 +564,40 @@ messages:
       leaderboard-title: "{job} Leaderboard"
       leaderboard-entry: "&7#{rank} &f{player}"
       leaderboard-lore: "&7Level {level} (P{prestige}) &7- {xp} xp"
+    quests:
+      header: "&6&l=== Daily Quests &7({completed}/{total}) &6&l==="
+      line: "&e{job}&7: {action} &f{target-name} &7x{amount}  {bar} &f{progress}/{amount} &7- &a{money}&7 + &b{xp}xp"
+      line-done: "&a✔ &m{job}: {action} {target-name} x{amount}&r &a(done)"
+      footer: "&7Quests reset every day. Complete all of them for an extra bonus!"
+      completed: "&6&lQuest complete! &e{job}&7: {action} {target-name} x{amount} &7-> &a+{money} &b+{xp}xp"
+      all-completed: "&6&lAll daily quests complete! &aBonus +{money}"
+      none: "&7No quests today - join a job first (/jobs join <job>)."
+      disabled: "&cDaily quests are disabled on this server."
+      reset: "&aReset today's quests for {player}."
+      any: "anything"
+      actions:
+        break-block: "Break"
+        place-block: "Place"
+        harvest-crop: "Harvest"
+        harvest-tall-plant: "Harvest"
+        harvest-block: "Collect from"
+        catch-fish: "Catch"
+        catch-treasure: "Fish up"
+        catch-emf-fish: "Catch fish of rarity"
+        kill-mob: "Kill"
+        kill-mob-ranged: "Shoot down"
+        kill-boss: "Defeat"
+        kill-player: "Defeat players"
+        breed-entity: "Breed"
+        tame-entity: "Tame"
+        shear-entity: "Shear"
+        craft-item: "Craft"
+        smelt-item: "Smelt"
+        enchant-item: "Enchant items"
+        trade-villager: "Trade with villagers"
+    bossbar:
+      title: "{job} &fLv.{level} &7- &f{xp}/{required} xp &7({percent}%)"
+      max-level: "{job} &fLv.{level} &6&lMAX"
   ja:
     general:
       players-only: "&cこのコマンドはプレイヤーのみ使用できます。"
@@ -512,11 +605,12 @@ messages:
       player-not-found: "&cプレイヤー「{player}」が見つかりません。"
       reloaded: "&aEcoJobsの設定を再読み込みしました。"
     jobs:
-      usage: "&c使い方: /jobs <join|leave|list|stats|top|menu|info|prestige|admin|booster|reload> [引数]"
+      usage: "&c使い方: /jobs <join|leave|list|stats|top|menu|info|prestige|quests|admin|booster|reload> [引数]"
       page-footer: "&7--- {page}/{pages}ページ - ページ番号を指定すると続きが見られます ---"
       unknown-job: "&c不明なジョブ「{job}」です。/jobs list で一覧を確認してください。"
       job-disabled: "&c{job}は現在、管理者により無効化されています。"
       already-joined: "&cすでに{job}に加入しています。"
+      hourly-cap-reached: "&e今の1時間で稼げる報酬の上限({cap})に達しました。ジョブ経験値は引き続き獲得でき、報酬は次の時間から再開します。"
       not-joined: "&c{job}に加入していません。"
       max-jobs-reached: "&c同時に加入できるのは{max}個までです。/jobs leave <ジョブ名> で1つ脱退してください。"
       joined: "&a{job}に加入しました！"
@@ -628,6 +722,41 @@ messages:
 # Display names for each job id, shown in /jobs list, /jobs stats, /jobs top, and the GUI menu.
 # Each name is prefixed with a & color code so job icons/text stand out in the GUI and chat
 # instead of showing as plain white - see Messages#jobName and its callers.
+    quests:
+      header: "&6&l=== デイリークエスト &7({completed}/{total}) &6&l==="
+      line: "&e{job}&7: {target-name}を{action} &7x{amount}  {bar} &f{progress}/{amount} &7- &a{money}&7 + &b{xp}xp"
+      line-done: "&a✔ &m{job}: {target-name}を{action} x{amount}&r &a(達成)"
+      footer: "&7クエストは毎日リセットされます。全部達成するとさらにボーナス!"
+      completed: "&6&lクエスト達成! &e{job}&7: {target-name}を{action} x{amount} &7-> &a+{money} &b+{xp}xp"
+      all-completed: "&6&l本日のデイリークエストをすべて達成! &aボーナス +{money}"
+      none: "&7今日のクエストはありません。まずジョブに加入してください (/jobs join <ジョブ名>)。"
+      disabled: "&cこのサーバーではデイリークエストは無効です。"
+      reset: "&a{player}の今日のクエストをリセットしました。"
+      any: "何でも"
+      actions:
+        break-block: "壊す"
+        place-block: "置く"
+        harvest-crop: "収穫する"
+        harvest-tall-plant: "収穫する"
+        harvest-block: "採取する"
+        catch-fish: "釣る"
+        catch-treasure: "釣り上げる"
+        catch-emf-fish: "釣る(レア度)"
+        kill-mob: "倒す"
+        kill-mob-ranged: "射抜く"
+        kill-boss: "討伐する"
+        kill-player: "倒す(プレイヤー)"
+        breed-entity: "繁殖させる"
+        tame-entity: "手なずける"
+        shear-entity: "毛を刈る"
+        craft-item: "作る"
+        smelt-item: "精錬する"
+        enchant-item: "エンチャントする"
+        trade-villager: "取引する(村人)"
+    bossbar:
+      title: "{job} &fLv.{level} &7- &f{xp}/{required} xp &7({percent}%)"
+      max-level: "{job} &fLv.{level} &6&l最大"
+
 job-names:
   en:
     # Colors are assigned by theme family, not per-job at random - 20 jobs can't each get a

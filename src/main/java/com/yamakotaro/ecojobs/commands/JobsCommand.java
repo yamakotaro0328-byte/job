@@ -9,6 +9,7 @@ import com.yamakotaro.ecojobs.JobOverrides;
 import com.yamakotaro.ecojobs.Messages;
 import com.yamakotaro.ecojobs.MoneyFormat;
 import com.yamakotaro.ecojobs.PlayerJobManager;
+import com.yamakotaro.ecojobs.QuestManager;
 import com.yamakotaro.ecojobs.PlayerJobProgress;
 import com.yamakotaro.ecojobs.TabCompleteUtil;
 import com.yamakotaro.ecojobs.menu.AdminMenuHolder;
@@ -36,6 +37,7 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
    private final JobOverrides jobOverrides;
    private final BoosterManager boosterManager;
    private final Messages messages;
+   private final QuestManager questManager;
    private static final int CHAT_PAGE_SIZE = 8;
 
    public JobsCommand(
@@ -44,8 +46,10 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
       PlayerJobManager playerJobManager,
       JobOverrides jobOverrides,
       BoosterManager boosterManager,
-      Messages messages
+      Messages messages,
+      QuestManager questManager
    ) {
+      this.questManager = questManager;
       this.plugin = plugin;
       this.jobManager = jobManager;
       this.playerJobManager = playerJobManager;
@@ -93,6 +97,10 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
                break;
             case "reload":
                this.handleReload(sender);
+               break;
+            case "quests":
+            case "quest":
+               this.handleQuests(sender, args);
                break;
             default:
                sender.sendMessage(this.messages.get("jobs.usage", Map.of()));
@@ -597,10 +605,52 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
       }
    }
 
+   private void handleQuests(CommandSender sender, String[] args) {
+      if (args.length == 3 && args[1].equalsIgnoreCase("reset")) {
+         if (!sender.hasPermission("ecojobs.admin")) {
+            sender.sendMessage(this.messages.get("general.no-permission", Map.of()));
+            return;
+         }
+
+         Player target = Bukkit.getPlayerExact(args[2]);
+         if (target == null) {
+            sender.sendMessage(this.messages.get("general.player-not-found", Map.of("player", args[2])));
+            return;
+         }
+
+         this.questManager.reset(target.getUniqueId());
+         sender.sendMessage(this.messages.get("quests.reset", Map.of("player", target.getName())));
+      } else if (sender instanceof Player player) {
+         if (!player.hasPermission("ecojobs.use")) {
+            player.sendMessage(this.messages.get("general.no-permission", Map.of()));
+         } else if (!this.questManager.isEnabled()) {
+            player.sendMessage(this.messages.get("quests.disabled", Map.of()));
+         } else {
+            List<QuestManager.Quest> quests = this.questManager.questsFor(player);
+            if (quests.isEmpty()) {
+               player.sendMessage(this.messages.get("quests.none", Map.of()));
+               return;
+            }
+
+            player.sendMessage(
+               this.messages.get("quests.header", Map.of("completed", String.valueOf(this.questManager.completedCount(player)), "total", String.valueOf(quests.size())))
+            );
+
+            for (QuestManager.Quest quest : quests) {
+               player.sendMessage(this.messages.get(quest.completed ? "quests.line-done" : "quests.line", this.questManager.placeholders(quest)));
+            }
+
+            player.sendMessage(this.messages.get("quests.footer", Map.of()));
+         }
+      } else {
+         sender.sendMessage(this.messages.get("general.players-only", Map.of()));
+      }
+   }
+
    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
       if (args.length == 1) {
          return TabCompleteUtil.filterPrefix(
-            List.of("join", "leave", "list", "stats", "top", "menu", "info", "prestige", "admin", "booster", "reload"), args[0]
+            List.of("join", "leave", "list", "stats", "top", "menu", "info", "prestige", "quests", "admin", "booster", "reload"), args[0]
          );
       } else if (args.length == 2) {
          String var7 = args[0].toLowerCase();
@@ -609,8 +659,11 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
             case "join", "leave", "top", "info", "prestige" -> TabCompleteUtil.filterPrefix(new ArrayList<>(this.jobManager.all().keySet()), args[1]);
             case "stats" -> TabCompleteUtil.onlinePlayerNames(args[1], null);
             case "booster" -> TabCompleteUtil.filterPrefix(List.of("start", "stop", "list"), args[1]);
+            case "quests" -> sender.hasPermission("ecojobs.admin") ? TabCompleteUtil.filterPrefix(List.of("reset"), args[1]) : Collections.emptyList();
             default -> Collections.emptyList();
          };
+      } else if (args.length == 3 && args[0].equalsIgnoreCase("quests") && args[1].equalsIgnoreCase("reset")) {
+         return TabCompleteUtil.onlinePlayerNames(args[2], null);
       } else if (args.length != 3 || !args[0].equalsIgnoreCase("booster") || !args[1].equalsIgnoreCase("start") && !args[1].equalsIgnoreCase("stop")) {
          return Collections.emptyList();
       } else {

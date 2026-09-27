@@ -1,5 +1,5 @@
 name: EcoJobs
-version: '1.0.0'
+version: '${project.version}'
 main: com.yamakotaro.ecojobs.EcoJobsPlugin
 api-version: '1.20'
 author: yamakotaro0328
@@ -12,7 +12,7 @@ softdepend: [Vault, PlaceholderAPI, EvenMoreFish]
 commands:
   jobs:
     description: Open the jobs menu (or join/leave jobs, see your stats, browse leaderboards, and prestige)
-    usage: /jobs [join|leave|list|stats|top|menu|info|prestige|admin|booster|reload] [args]
+    usage: /jobs [join|leave|list|stats|top|menu|info|prestige|quests|admin|booster|reload] [args]
     aliases: [job]
 
 permissions:
@@ -25,6 +25,9 @@ permissions:
   ecojobs.bypass.maxjobs:
     description: Not limited by max-concurrent-jobs in config.yml
     default: false
+  ecojobs.bypass.hourlycap:
+    description: Not limited by anti-farm.max-money-per-hour in config.yml
+    default: false
   ecojobs.admin:
-    description: Can use /jobs reload, /jobs admin, and /jobs booster
+    description: Can use /jobs reload, /jobs admin, /jobs booster, and /jobs quests reset
     default: op
