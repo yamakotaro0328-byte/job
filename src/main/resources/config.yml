@@ -1,0 +1,680 @@
+# EcoJobs configuration
+# Language for messages below: "en" or "ja".
+# (日本語) 以下のメッセージの言語。"en" または "ja"。
+language: ja
+
+# How many jobs a single player can be in at the same time.
+# (日本語) 1人のプレイヤーが同時に加入できるジョブ数。
+max-concurrent-jobs: 3
+
+# Where job progress is saved. "yaml" (default) needs no setup. "mysql" shares progress across
+# multiple servers pointed at the same database - fill in storage.mysql below.
+# (日本語) ジョブの進行状況の保存先。"yaml"(デフォルト)は設定不要。"mysql"にすると、
+# 同じデータベースを指す複数サーバー間で進行状況を共有できる(下のstorage.mysqlを設定)。
+storage:
+  type: yaml
+  mysql:
+    host: localhost
+    port: 3306
+    database: ecojobs
+    username: root
+    password: ""
+    table-prefix: "ecojobs_"
+
+leveling:
+  # xp required to go from level N to N+1 = base-xp-to-level * N ^ growth-exponent
+  # (日本語) レベルNからN+1に必要な経験値 = base-xp-to-level * N ^ growth-exponent
+  #
+  # At the defaults below, reaching max-level (100) takes ~74,250 total xp. The previous defaults
+  # (50 / 1.35) needed ~1.04 million - effectively unreachable (roughly 300k blocks for a 0.2xp
+  # digger action), which meant nobody ever saw the level milestones, prestige, or the job-perks
+  # system (see jobs.<job>.perks below) that unlock deep into a job's levels.
+  # (日本語) 上のデフォルト値では、最大レベル(100)到達に必要な経験値は合計約74,250。旧デフォルト
+  # (50 / 1.35) では約104万必要で、事実上到達不可能だった(0.2xpの穴掘り行動なら約30万ブロック)。
+  # その結果、レベルマイルストーンもプレステージも、深いレベルで解放される職業パーク
+  # (下のjobs.<job>.perksを参照)も誰の目にも触れないままだった。
+  base-xp-to-level: 15
+  growth-exponent: 1.0
+  # Money earned per action is multiplied by (1 + level * pay-bonus-per-level), so a level 40
+  # miner earns 20% more per action than a level 0 miner at the default 0.005 (0.5%/level).
+  # (日本語) 1回の行動で得るお金は (1 + レベル * pay-bonus-per-level) 倍される。デフォルトの
+  # 0.005 (レベルごとに0.5%) だとレベル40で+20%になる。
+  pay-bonus-per-level: 0.005
+  max-level: 100
+  # Once a job hits max-level, /jobs prestige <job> resets it to level 1 (and 0 xp) in exchange
+  # for one permanent stack of this bonus, which stacks additively with pay-bonus-per-level - so
+  # at the defaults, a prestige-3 level-40 miner earns (1 + 40*0.005 + 3*0.02) = +26% per action.
+  # (日本語) ジョブが最大レベルに達すると、/jobs prestige <ジョブ名> でレベル1(経験値0)に
+  # 戻す代わりに、この永続ボーナスが1つ蓄積される(pay-bonus-per-levelと加算される)。
+  prestige-bonus-per-prestige: 0.02
+  # Every job pays a one-time bonus (broadcast server-wide) whenever it reaches one of these
+  # levels. Re-triggers on each future prestige cycle's relevel, since prestige exists to be
+  # replayed. Set milestone-bonus-money to 0 to keep the fanfare without the payout.
+  # (日本語) どのジョブも、これらのレベルに到達するたびに一度きりのボーナス(サーバー全体に
+  # 告知)がもらえる。プレステージ後に同じレベルを再び通過した際も再発生する(プレステージは
+  # 繰り返し遊ぶための仕組みのため)。演出だけ残して支払いを止めたい場合はmilestone-bonus-moneyを
+  # 0にする。
+  milestone-levels: [10, 25, 50, 75, 100]
+  milestone-bonus-money: 100
+
+# The "explorer" job doesn't have a block/entity/item action list like the others below - it
+# pays out every time a player reaches a new farthest distance (in blocks, ignoring height) from
+# their world's spawn point.
+# (日本語) 「探検家」ジョブだけは下のjobsのactionsを使わず、ワールドスポーンから
+# (高さを無視した)最も遠い距離を更新するたびに支払われる。
+explorer:
+  distance-per-milestone: 250
+  money-per-milestone: 100
+  xp-per-milestone: 60
+  # See "jobs.<job>.perks" below for the full format - explorer's perks live here since it has no
+  # "actions" table of its own.
+  perks:
+    - { level: 25, type: potion, value: 1, effect: SPEED }
+    - { level: 75, type: pay-bonus, value: 10 }
+
+# Auto-smelt perk (see jobs.miner.perks) result map: ore block -> smelted item. Only consulted for
+# players who've unlocked an auto-smelt perk; everyone else keeps dropping the raw block as usual.
+# (日本語) 自動精錬パーク(jobs.miner.perksを参照)の対応表: 鉱石ブロック -> 精錬後のアイテム。
+# このパークを解放したプレイヤーにのみ適用され、それ以外は通常どおり未精錬でドロップする。
+auto-smelt-map:
+  IRON_ORE: IRON_INGOT
+  DEEPSLATE_IRON_ORE: IRON_INGOT
+  GOLD_ORE: GOLD_INGOT
+  DEEPSLATE_GOLD_ORE: GOLD_INGOT
+  NETHER_GOLD_ORE: GOLD_INGOT
+  COPPER_ORE: COPPER_INGOT
+  DEEPSLATE_COPPER_ORE: COPPER_INGOT
+  ANCIENT_DEBRIS: NETHERITE_SCRAP
+
+# 無限稼ぎ対策。
+# - player-kill-cooldown-minutes: 同じ相手を倒して戦士の報酬が再び出るまでの分数。2人組で
+#   延々と殺し合うだけで稼げてしまうのを防ぐ。0にすると制限なし。
+# (日本語) なお、探検家のテレポート/エリトラ移動、建築士の「置いて壊す」繰り返し、弓術師の
+# 動物撃ちは、いずれもコード側で対策済み(設定不要)。
+anti-farm:
+  player-kill-cooldown-minutes: 30
+
+# Every other job: a map of action-type -> (material/entity name, or "default") -> {money, xp}.
+# Material/entity names are the same names used in Java's Material/EntityType enums (as shown in
+# the Bukkit/Paper API docs), case-insensitive. Add or remove entries freely; anything not listed
+# for a job (and with no "default" entry) simply doesn't pay out for that job.
+# (日本語) 他のジョブはすべて action-type -> (素材名/エンティティ名、または"default") ->
+# {money, xp} の対応表になっている。名前はJavaのMaterial/EntityType列挙型と同じ表記
+# (大文字小文字は区別しない)。自由に追加・削除でき、載っていない("default"も無い)ものは
+# そのジョブでは何ももらえないだけ。
+#
+# Any job can also have a "perks:" list - level-gated bonuses beyond money/xp, shown in the GUI's
+# per-job detail screen (shift-right-click a job). Each entry is {level, type, value, effect?}:
+#   - pay-bonus: value = extra pay %, stacks with leveling.pay-bonus-per-level.
+#   - potion: value = effect amplifier (1 = level I), effect = a PotionEffectType name
+#     (e.g. FAST_DIGGING, WATER_BREATHING, SPEED). Kept up only while the job is joined.
+#   - double-drop: value = % chance a mined/chopped/harvested block's drop doubles.
+#     Only meaningful for miner/digger/woodcutter/farmer.
+#   - auto-smelt: value is unused - ore blocks drop already smelted per auto-smelt-map above.
+#     Only meaningful for miner.
+#   - xp-orb-bonus: value = flat extra *vanilla* xp (not job xp) per action.
+# "level" is an effective level (level + prestige * leveling.max-level), so prestiging a job never
+# takes a perk away. Leave a job's perks list empty (or omit it) to disable perks for that job.
+# (日本語) どのジョブにも "perks:" (パーク) リストを追加できる。お金/経験値以外の、レベルで
+# 解放される特典で、GUIの職業詳細画面(職業をシフト右クリック)に表示される。各項目は
+# {level, type, value, effect?}:
+#   - pay-bonus: valueがそのジョブの報酬への追加%(leveling.pay-bonus-per-levelと加算)。
+#   - potion: valueが効果のレベル(1=効果I)、effectがPotionEffectType名
+#     (例: FAST_DIGGING、WATER_BREATHING、SPEED)。就職中のみ維持される。
+#   - double-drop: valueが採掘/伐採/収穫したブロックのドロップが倍になる確率(%)。
+#     採掘工/穴掘り/木こり/農家でのみ意味を持つ。
+#   - auto-smelt: valueは未使用。上のauto-smelt-mapに従い、鉱石が精錬済みでドロップする。
+#     採掘工でのみ意味を持つ。
+#   - xp-orb-bonus: valueが1回の行動で得られる*バニラの*経験値(ジョブの経験値とは別)。
+# "level"は実効レベル(レベル + プレステージ回数 × leveling.max-level)なので、プレステージ
+# してもパークが失われることはない。パークを使いたくないジョブは perks を空にする(または
+# 書かない)だけでよい。
+jobs:
+  miner:
+    actions:
+      break-block:
+        COAL_ORE: { money: 4, xp: 3 }
+        DEEPSLATE_COAL_ORE: { money: 4, xp: 3 }
+        COPPER_ORE: { money: 4, xp: 3 }
+        DEEPSLATE_COPPER_ORE: { money: 4, xp: 3 }
+        IRON_ORE: { money: 7, xp: 5 }
+        DEEPSLATE_IRON_ORE: { money: 7, xp: 5 }
+        GOLD_ORE: { money: 10, xp: 6 }
+        DEEPSLATE_GOLD_ORE: { money: 10, xp: 6 }
+        NETHER_GOLD_ORE: { money: 8, xp: 5 }
+        REDSTONE_ORE: { money: 6, xp: 4 }
+        DEEPSLATE_REDSTONE_ORE: { money: 6, xp: 4 }
+        LAPIS_ORE: { money: 6, xp: 4 }
+        DEEPSLATE_LAPIS_ORE: { money: 6, xp: 4 }
+        DIAMOND_ORE: { money: 40, xp: 20 }
+        DEEPSLATE_DIAMOND_ORE: { money: 40, xp: 20 }
+        EMERALD_ORE: { money: 45, xp: 22 }
+        DEEPSLATE_EMERALD_ORE: { money: 45, xp: 22 }
+        NETHER_QUARTZ_ORE: { money: 5, xp: 3 }
+        ANCIENT_DEBRIS: { money: 120, xp: 60 }
+    perks:
+      - { level: 15, type: potion, value: 1, effect: FAST_DIGGING }
+      - { level: 30, type: double-drop, value: 15 }
+      - { level: 50, type: pay-bonus, value: 10 }
+      - { level: 100, type: auto-smelt }
+
+  digger:
+    actions:
+      # xp raised 5x over money-equivalent digger/builder had the lowest xp of any job by far
+      # (0.2-0.4/block) - combined with the old leveling curve, digging alone needed ~300,000
+      # blocks to hit max level. Money is untouched (no economy inflation), only xp moved.
+      # (日本語) 穴掘り/建築士は、お金に対して経験値だけが他のどのジョブより低かった
+      # (1ブロックあたり0.2〜0.4)。旧レベル曲線と組み合わさると、穴掘りだけで最大レベルまで
+      # 約30万ブロック必要だった。お金はそのまま(経済インフレ回避)、経験値だけを5倍にした。
+      break-block:
+        DIRT: { money: 0.2, xp: 1 }
+        GRASS_BLOCK: { money: 0.2, xp: 1 }
+        SAND: { money: 0.2, xp: 1 }
+        RED_SAND: { money: 0.2, xp: 1 }
+        GRAVEL: { money: 0.3, xp: 1.5 }
+        CLAY: { money: 0.5, xp: 2 }
+        STONE: { money: 0.3, xp: 1.5 }
+        COBBLESTONE: { money: 0.3, xp: 1.5 }
+        DEEPSLATE: { money: 0.3, xp: 1.5 }
+        COBBLED_DEEPSLATE: { money: 0.3, xp: 1.5 }
+        NETHERRACK: { money: 0.2, xp: 1 }
+        SOUL_SAND: { money: 0.4, xp: 1.5 }
+        SOUL_SOIL: { money: 0.4, xp: 1.5 }
+        END_STONE: { money: 0.4, xp: 1.5 }
+
+  woodcutter:
+    actions:
+      break-block:
+        OAK_LOG: { money: 2, xp: 1.5 }
+        SPRUCE_LOG: { money: 2, xp: 1.5 }
+        BIRCH_LOG: { money: 2, xp: 1.5 }
+        JUNGLE_LOG: { money: 2.5, xp: 1.8 }
+        ACACIA_LOG: { money: 2.5, xp: 1.8 }
+        DARK_OAK_LOG: { money: 2.5, xp: 1.8 }
+        MANGROVE_LOG: { money: 2.5, xp: 1.8 }
+        CHERRY_LOG: { money: 3, xp: 2 }
+        CRIMSON_STEM: { money: 3, xp: 2 }
+        WARPED_STEM: { money: 3, xp: 2 }
+    perks:
+      - { level: 40, type: double-drop, value: 15 }
+      - { level: 80, type: pay-bonus, value: 10 }
+
+  farmer:
+    actions:
+      # Crops must grow to their maximum age (which always takes real time) before they pay out,
+      # so - unlike miner/digger/woodcutter - a farmer is never checked against the placed-block
+      # tracker: replanting is the normal way to earn this money, not an exploit.
+      harvest-crop:
+        WHEAT: { money: 3, xp: 2 }
+        CARROTS: { money: 3, xp: 2 }
+        POTATOES: { money: 3, xp: 2 }
+        BEETROOTS: { money: 3, xp: 2 }
+        NETHER_WART: { money: 4, xp: 2.5 }
+        COCOA: { money: 5, xp: 3 }
+      harvest-tall-plant:
+        MELON: { money: 4, xp: 2 }
+        PUMPKIN: { money: 4, xp: 2 }
+    perks:
+      - { level: 40, type: double-drop, value: 15 }
+      - { level: 80, type: pay-bonus, value: 10 }
+
+  builder:
+    actions:
+      # xp raised 5x over money for the same reason as digger above (see its comment).
+      place-block:
+        default: { money: 0.15, xp: 0.5 }
+
+  fisherman:
+    actions:
+      catch-fish:
+        COD: { money: 5, xp: 3 }
+        SALMON: { money: 6, xp: 3 }
+        PUFFERFISH: { money: 8, xp: 4 }
+        TROPICAL_FISH: { money: 9, xp: 5 }
+      # EvenMoreFish が導入されている場合のみ使う。キーはEMF側のレア度名(小文字)で、
+      # そちらで独自のレア度を追加しているならここに同じ名前で足せばよい。名前が一致しない
+      # レア度は default が使われる。EMF未導入なら、この欄はまったく使われない。
+      catch-emf-fish:
+        common: { money: 10, xp: 5 }
+        uncommon: { money: 25, xp: 12 }
+        rare: { money: 60, xp: 30 }
+        epic: { money: 120, xp: 60 }
+        legendary: { money: 300, xp: 150 }
+        mythic: { money: 600, xp: 300 }
+        default: { money: 15, xp: 8 }
+    perks:
+      - { level: 20, type: potion, value: 1, effect: WATER_BREATHING }
+      - { level: 60, type: pay-bonus, value: 10 }
+      - { level: 100, type: xp-orb-bonus, value: 3 }
+
+  treasurehunter:
+    actions:
+      # 釣りで魚以外が釣れた時。本物のお宝だけを個別に高額で載せ、載っていない物
+      # (棒・革・ボウル・濡れた本などのジャンク)は default の少額になる。
+      # 以前は全部が default の40円だったため、タラ5円に対してゴミが40円という逆転が起き、
+      # 放置釣り機でゴミを釣り続けるのが最も儲かる状態になっていた。
+      catch-treasure:
+        NAME_TAG: { money: 80, xp: 35 }
+        SADDLE: { money: 80, xp: 35 }
+        NAUTILUS_SHELL: { money: 70, xp: 30 }
+        ENCHANTED_BOOK: { money: 60, xp: 30 }
+        BOW: { money: 40, xp: 20 }
+        FISHING_ROD: { money: 40, xp: 20 }
+        default: { money: 2, xp: 1 }
+
+  hunter:
+    actions:
+      kill-mob:
+        ZOMBIE: { money: 4, xp: 3 }
+        HUSK: { money: 4, xp: 3 }
+        DROWNED: { money: 5, xp: 3 }
+        SKELETON: { money: 4, xp: 3 }
+        STRAY: { money: 5, xp: 3 }
+        SPIDER: { money: 4, xp: 3 }
+        CAVE_SPIDER: { money: 5, xp: 3 }
+        CREEPER: { money: 6, xp: 4 }
+        ENDERMAN: { money: 8, xp: 5 }
+        WITCH: { money: 10, xp: 6 }
+        PILLAGER: { money: 7, xp: 4 }
+        VINDICATOR: { money: 10, xp: 6 }
+        RAVAGER: { money: 30, xp: 15 }
+        PHANTOM: { money: 8, xp: 5 }
+        SLIME: { money: 3, xp: 2 }
+        MAGMA_CUBE: { money: 3, xp: 2 }
+        BLAZE: { money: 12, xp: 7 }
+        GHAST: { money: 15, xp: 8 }
+        SHULKER: { money: 20, xp: 10 }
+        GUARDIAN: { money: 12, xp: 7 }
+
+  archer:
+    actions:
+      # Any hostile-mob kill (from hunter's list above) where the fatal blow was a projectile,
+      # instead of melee, pays this flat rate on top of - not instead of - the hunter payout.
+      kill-mob-ranged:
+        default: { money: 6, xp: 4 }
+
+  slayer:
+    actions:
+      kill-boss:
+        ENDER_DRAGON: { money: 5000, xp: 2000 }
+        WITHER: { money: 2500, xp: 1000 }
+        ELDER_GUARDIAN: { money: 300, xp: 150 }
+        WARDEN: { money: 4000, xp: 1800 }
+
+  warrior:
+    actions:
+      kill-player:
+        default: { money: 50, xp: 25 }
+
+  breeder:
+    actions:
+      breed-entity:
+        COW: { money: 8, xp: 5 }
+        MUSHROOM_COW: { money: 8, xp: 5 }
+        SHEEP: { money: 8, xp: 5 }
+        PIG: { money: 8, xp: 5 }
+        CHICKEN: { money: 6, xp: 4 }
+        RABBIT: { money: 8, xp: 5 }
+        HORSE: { money: 15, xp: 8 }
+        DONKEY: { money: 12, xp: 7 }
+        MULE: { money: 12, xp: 7 }
+        LLAMA: { money: 10, xp: 6 }
+        WOLF: { money: 10, xp: 6 }
+        CAT: { money: 10, xp: 6 }
+        TURTLE: { money: 10, xp: 6 }
+        BEE: { money: 10, xp: 6 }
+        AXOLOTL: { money: 10, xp: 6 }
+        default: { money: 8, xp: 5 }
+
+  tamer:
+    actions:
+      tame-entity:
+        WOLF: { money: 12, xp: 8 }
+        CAT: { money: 12, xp: 8 }
+        HORSE: { money: 15, xp: 9 }
+        DONKEY: { money: 12, xp: 7 }
+        PARROT: { money: 10, xp: 6 }
+        LLAMA: { money: 12, xp: 7 }
+        default: { money: 10, xp: 6 }
+
+  shearer:
+    actions:
+      shear-entity:
+        SHEEP: { money: 3, xp: 2 }
+        MUSHROOM_COW: { money: 5, xp: 3 }
+        SNOWMAN: { money: 2, xp: 1 }
+        default: { money: 3, xp: 2 }
+
+  beekeeper:
+    actions:
+      harvest-block:
+        BEEHIVE: { money: 8, xp: 5 }
+        BEE_NEST: { money: 8, xp: 5 }
+
+  enchanter:
+    actions:
+      # Scaled by the enchant's XP-level cost (a natural difficulty proxy), not a flat rate.
+      enchant-item:
+        default: { money-per-level: 4, xp-per-level: 3 }
+
+  smelter:
+    actions:
+      smelt-item:
+        IRON_INGOT: { money: 3, xp: 2 }
+        GOLD_INGOT: { money: 4, xp: 2.5 }
+        COPPER_INGOT: { money: 2, xp: 1.5 }
+        GLASS: { money: 1, xp: 0.5 }
+        BRICK: { money: 1.5, xp: 1 }
+        COOKED_BEEF: { money: 1.5, xp: 1 }
+        COOKED_PORKCHOP: { money: 1.5, xp: 1 }
+        COOKED_CHICKEN: { money: 1.5, xp: 1 }
+        COOKED_MUTTON: { money: 1.5, xp: 1 }
+        COOKED_RABBIT: { money: 1.5, xp: 1 }
+        COOKED_COD: { money: 1.5, xp: 1 }
+        COOKED_SALMON: { money: 1.5, xp: 1 }
+        BAKED_POTATO: { money: 1.5, xp: 1 }
+        default: { money: 1, xp: 0.5 }
+
+  crafter:
+    actions:
+      craft-item:
+        default: { money: 0.3, xp: 0.2 }
+
+  merchant:
+    actions:
+      trade-villager:
+        default: { money: 8, xp: 5 }
+
+messages:
+  en:
+    general:
+      players-only: "&cThis command can only be used by players."
+      no-permission: "&cYou don't have permission to do that."
+      player-not-found: "&cPlayer '{player}' not found."
+      reloaded: "&aEcoJobs config reloaded."
+    jobs:
+      usage: "&cUsage: /jobs <join|leave|list|stats|top|menu|info|prestige|admin|booster|reload> [args]"
+      page-footer: "&7--- Page {page}/{pages} - add a page number to see more ---"
+      unknown-job: "&cUnknown job '{job}'. Use /jobs list to see available jobs."
+      job-disabled: "&cThe {job} job is currently disabled by an admin."
+      already-joined: "&cYou're already in the {job} job."
+      not-joined: "&cYou're not in the {job} job."
+      max-jobs-reached: "&cYou can only be in {max} jobs at once. Leave one first with /jobs leave <job>."
+      joined: "&aJoined the {job} job!"
+      left: "&eLeft the {job} job."
+      list-header: "&7--- Jobs ---"
+      list-entry-joined: "&a{job} &7- Level {level} (P{prestige}) ({xp}/{next_xp} xp) &a[joined]"
+      list-entry-left: "&e{job} &7- Level {level} (P{prestige}) ({xp}/{next_xp} xp) &7[not active]"
+      list-entry-not-joined: "&f{job} &7- not joined"
+      stats-header: "&7--- Your jobs ---"
+      stats-header-other: "&7--- {player}'s jobs ---"
+      stats-entry: "&f{job}: &7Level {level} (Prestige {prestige}) ({xp}/{next_xp} xp)"
+      stats-entry-inactive: "&7{job} (not active): &7Level {level} (Prestige {prestige}) ({xp}/{next_xp} xp)"
+      stats-none: "&7You haven't joined any jobs yet. Use /jobs list to see what's available."
+      stats-none-other: "&7{player} hasn't joined any jobs yet."
+      level-up: "&a&l{job} leveled up! &aYou're now level {level}."
+      max-level-reached: "&6{job} is at max level! Use &e/jobs prestige {job} &6to reset it to level 1 for a permanent pay bonus."
+      top-header: "&7--- Top {job} ---"
+      top-entry: "&7#{rank} &f{player} &7- Level {level} (P{prestige}) ({xp} xp)"
+      top-empty: "&7Nobody has joined {job} yet."
+      earned: "&a+{money} &7{job}"
+      info-header: "&7--- {job} rewards ---"
+      info-entry: "&f{key}: &a+{money} money &7/ &b+{xp} xp"
+      info-empty: "&7This job has no configured action rewards (see config.yml)."
+      info-explorer: "&7Every &f{distance} &7blocks explored: &a+{money} money &7/ &b+{xp} xp"
+      prestige-not-max-level: "&cYou must reach level {max} in {job} before you can prestige."
+      prestige-broadcast: "&d★ &f{player} &dprestiged &f{job} &dto Prestige {prestige}!"
+      milestone-broadcast: "&6✦ &f{player} &6reached level &f{level} &6in &f{job} &6and earned a &f{money} &6bonus!"
+      milestone-repeat: "&6✦ &6You reached level &f{level} &6in &f{job} &6again and earned a &f{money} &6bonus!"
+      booster-usage: "&cUsage: /jobs booster <start <job|all> <money multiplier> <xp multiplier> <minutes> | stop <job|all> | list>"
+      booster-invalid-number: "&cInvalid number."
+      booster-scope-all: "All jobs"
+      booster-started: "&d★ &f{player} &dstarted a &f{money}x money / {xp}x xp &dbooster for &f{scope} &dfor &f{minutes} &dminutes!"
+      booster-stopped: "&e{scope} booster stopped by {player}."
+      booster-stopped-all: "&eAll active boosters were stopped by {player}."
+      booster-not-active: "&cNo active booster for {scope}."
+      booster-list-header: "&7--- Active boosters ---"
+      booster-list-entry: "&f{scope}: &ax{money} money &7/ &bx{xp} xp &7({minutes} min left)"
+      booster-list-empty: "&7No boosters are currently active."
+    menu:
+      title: "EcoJobs"
+      close: "&cClose"
+      back: "&7« Back"
+      summary-title: "&d{player}"
+      summary-lore: "&7Total level: &f{total_level} &7| Jobs: &f{joined}&7/&f{max}"
+      job-title: "{job}"
+      lore-level: "&7Level {level} (P{prestige}) ({xp}/{next_xp} xp)"
+      lore-progress: "{bar} &7{percent}%"
+      lore-not-joined: "&7Not joined"
+      lore-disabled: "&c(Disabled by an admin)"
+      lore-click-join: "&aClick to join"
+      lore-click-leave: "&cClick to leave"
+      lore-click-rejoin: "&7Not active - &aclick to resume"
+      lore-click-leaderboard: "&eShift-click: &7view leaderboard"
+      lore-click-info: "&bRight-click: &7view payouts and perks"
+      lore-click-prestige: "&dRight-click: &7prestige"
+      page-prev: "&e« Previous Page"
+      page-next: "&eNext Page »"
+      job-info-title: "{job} Payouts"
+      job-info-entry-money: "&7Money: &f{money}"
+      job-info-entry-xp: "&7XP: &f{xp}"
+      job-info-explorer-lore: "&7Every &f{distance} &7blocks explored:"
+      job-info-perk-unlocked-title: "&a✔ Level {level} Perk"
+      job-info-perk-locked-title: "&7✘ Level {level} Perk"
+      job-info-perk-levels-away: "&8{levels} more level(s) to unlock"
+      perk-desc-pay-bonus: "&7+{value}% pay for this job"
+      perk-desc-potion: "&7Grants &f{effect} &7while this job is joined"
+      perk-desc-double-drop: "&7{value}% chance to double this job's drops"
+      perk-desc-auto-smelt: "&7Ores from this job drop already smelted"
+      perk-desc-xp-orb-bonus: "&7+{value} bonus vanilla XP per action"
+      perk-desc-unknown: "&7(unrecognized perk)"
+      prestige-confirm-title: "Prestige {job}?"
+      prestige-confirm-lore: "&7Resets to level 1 (0 xp) in exchange for a permanent pay bonus. This cannot be undone."
+      prestige-confirm-yes: "&aConfirm"
+      prestige-confirm-no: "&cCancel"
+      hub-title: "EcoJobs"
+      hub-my-jobs: "&aMy Jobs"
+      hub-my-jobs-lore: "&7View and manage your jobs"
+      hub-leaderboards: "&6Leaderboards"
+      hub-leaderboards-lore: "&7Browse job rankings"
+      hub-settings: "&bSettings"
+      hub-settings-lore: "&7Click sounds and earnings action bar"
+      hub-admin: "&cAdmin Panel"
+      hub-admin-lore: "&7Manage jobs, multipliers, and boosters"
+      hub-boosters: "&dActive Boosters"
+      settings-title: "EcoJobs Settings"
+      settings-sound-title: "&bClick Sounds"
+      settings-actionbar-title: "&bEarnings Action Bar"
+      settings-on: "&aEnabled - click to disable"
+      settings-off: "&7Disabled - click to enable"
+      leaderboard-picker-title: "Leaderboards"
+    admin:
+      title: "EcoJobs Admin"
+      lore-enabled-yes: "&7Enabled: &aYes"
+      lore-enabled-no: "&7Enabled: &cNo"
+      lore-multiplier: "&7Pay multiplier: &f{multiplier}x"
+      lore-job-booster: "&d★ Booster: x{money} money / x{xp} xp &7({minutes} min left)"
+      lore-controls-toggle: "&eLeft-click: &7toggle enabled"
+      lore-controls-multiplier-up: "&eRight-click: &7+0.1x pay multiplier"
+      lore-controls-multiplier-down: "&eShift-right-click: &7-0.1x pay multiplier"
+      lore-controls-leaderboard: "&eShift-left-click: &7view leaderboard"
+      booster-start-title: "&dStart 2x global booster"
+      booster-start-lore: "&7Click to boost &fmoney and xp x{multiplier} &7for all jobs for &f{minutes} &7minutes"
+      booster-stop-title: "&cStop all boosters"
+      booster-stop-lore: "&7{count} booster(s) currently active"
+      leaderboard-title: "{job} Leaderboard"
+      leaderboard-entry: "&7#{rank} &f{player}"
+      leaderboard-lore: "&7Level {level} (P{prestige}) &7- {xp} xp"
+  ja:
+    general:
+      players-only: "&cこのコマンドはプレイヤーのみ使用できます。"
+      no-permission: "&cこの操作を行う権限がありません。"
+      player-not-found: "&cプレイヤー「{player}」が見つかりません。"
+      reloaded: "&aEcoJobsの設定を再読み込みしました。"
+    jobs:
+      usage: "&c使い方: /jobs <join|leave|list|stats|top|menu|info|prestige|admin|booster|reload> [引数]"
+      page-footer: "&7--- {page}/{pages}ページ - ページ番号を指定すると続きが見られます ---"
+      unknown-job: "&c不明なジョブ「{job}」です。/jobs list で一覧を確認してください。"
+      job-disabled: "&c{job}は現在、管理者により無効化されています。"
+      already-joined: "&cすでに{job}に加入しています。"
+      not-joined: "&c{job}に加入していません。"
+      max-jobs-reached: "&c同時に加入できるのは{max}個までです。/jobs leave <ジョブ名> で1つ脱退してください。"
+      joined: "&a{job}に加入しました！"
+      left: "&e{job}を脱退しました。"
+      list-header: "&7--- ジョブ一覧 ---"
+      list-entry-joined: "&a{job} &7- レベル{level} (P{prestige}) ({xp}/{next_xp} xp) &a[加入中]"
+      list-entry-left: "&e{job} &7- レベル{level} (P{prestige}) ({xp}/{next_xp} xp) &7[非稼働]"
+      list-entry-not-joined: "&f{job} &7- 未加入"
+      stats-header: "&7--- 自分のジョブ ---"
+      stats-header-other: "&7--- {player}のジョブ ---"
+      stats-entry: "&f{job}: &7レベル{level} (プレステージ{prestige}) ({xp}/{next_xp} xp)"
+      stats-entry-inactive: "&7{job}(非稼働): &7レベル{level} (プレステージ{prestige}) ({xp}/{next_xp} xp)"
+      stats-none: "&7まだどのジョブにも加入していません。/jobs list で一覧を確認してください。"
+      stats-none-other: "&7{player}はまだどのジョブにも加入していません。"
+      level-up: "&a&l{job}のレベルが上がりました！ &a現在レベル{level}。"
+      max-level-reached: "&6{job}が最大レベルに到達しました！ &e/jobs prestige {job} &6でレベル1に戻すと永続ボーナスが得られます。"
+      top-header: "&7--- {job} ランキング ---"
+      top-entry: "&7#{rank} &f{player} &7- レベル{level} (P{prestige}) ({xp} xp)"
+      top-empty: "&7まだ誰も{job}に加入していません。"
+      earned: "&a+{money} &7{job}"
+      info-header: "&7--- {job} の報酬一覧 ---"
+      info-entry: "&f{key}: &a+{money} 円 &7/ &b+{xp} xp"
+      info-empty: "&7このジョブには設定された報酬がありません(config.ymlを確認してください)。"
+      info-explorer: "&7&f{distance}&7ブロック探索するごとに: &a+{money} 円 &7/ &b+{xp} xp"
+      prestige-not-max-level: "&c{job}をプレステージするにはレベル{max}に到達する必要があります。"
+      prestige-broadcast: "&d★ &f{player} &dが{job}をプレステージ{prestige}にしました！"
+      milestone-broadcast: "&6✦ &f{player} &6が&f{job}&6でレベル&f{level}&6に到達し、&f{money}&6のボーナスを獲得しました！"
+      milestone-repeat: "&6✦ &6{job}&6で再びレベル&f{level}&6に到達し、&f{money}&6のボーナスを獲得しました！"
+      booster-usage: "&c使い方: /jobs booster <start <ジョブ名|all> <お金倍率> <経験値倍率> <分数> | stop <ジョブ名|all> | list>"
+      booster-invalid-number: "&c数値が不正です。"
+      booster-scope-all: "全ジョブ"
+      booster-started: "&d★ &f{player} &dが&f{scope}&dに &f{money}倍のお金 / {xp}倍の経験値 &dのブースターを&f{minutes}分間&d発動しました！"
+      booster-stopped: "&e{scope}のブースターを{player}が停止しました。"
+      booster-stopped-all: "&e有効なブースターをすべて{player}が停止しました。"
+      booster-not-active: "&c{scope}に有効なブースターはありません。"
+      booster-list-header: "&7--- 有効なブースター ---"
+      booster-list-entry: "&f{scope}: &ax{money}倍のお金 &7/ &bx{xp}倍の経験値 &7(残り{minutes}分)"
+      booster-list-empty: "&7現在、有効なブースターはありません。"
+    menu:
+      title: "EcoJobs"
+      close: "&c閉じる"
+      back: "&7« 戻る"
+      summary-title: "&d{player}"
+      summary-lore: "&7合計レベル: &f{total_level} &7| ジョブ: &f{joined}&7/&f{max}"
+      job-title: "{job}"
+      lore-level: "&7レベル{level} (P{prestige}) ({xp}/{next_xp} xp)"
+      lore-progress: "{bar} &7{percent}%"
+      lore-not-joined: "&7未加入"
+      lore-disabled: "&c(管理者により無効化)"
+      lore-click-join: "&aクリックで加入"
+      lore-click-leave: "&cクリックで脱退"
+      lore-click-rejoin: "&7非稼働 - &aクリックで再開"
+      lore-click-leaderboard: "&eシフト+クリック: &7ランキングを表示"
+      lore-click-info: "&b右クリック: &7報酬・パークを見る"
+      lore-click-prestige: "&d右クリック: &7プレステージ"
+      page-prev: "&e« 前のページ"
+      page-next: "&e次のページ »"
+      job-info-title: "{job}の報酬"
+      job-info-entry-money: "&7お金: &f{money}"
+      job-info-entry-xp: "&7経験値: &f{xp}"
+      job-info-explorer-lore: "&7&f{distance}&7ブロック探索するごとに:"
+      job-info-perk-unlocked-title: "&a✔ レベル{level}パーク"
+      job-info-perk-locked-title: "&7✘ レベル{level}パーク"
+      job-info-perk-levels-away: "&8あと{levels}レベルで解放"
+      perk-desc-pay-bonus: "&7このジョブの報酬+{value}%"
+      perk-desc-potion: "&7このジョブに就職中は&f{effect}&7の効果を付与"
+      perk-desc-double-drop: "&7{value}%の確率でこのジョブのドロップが倍に"
+      perk-desc-auto-smelt: "&7このジョブで採れる鉱石が精錬済みでドロップ"
+      perk-desc-xp-orb-bonus: "&71回の行動につき経験値+{value}(バニラ)"
+      perk-desc-unknown: "&7(不明なパーク)"
+      prestige-confirm-title: "{job}をプレステージしますか？"
+      prestige-confirm-lore: "&7永続的な報酬ボーナスと引き換えに、レベル1(経験値0)に戻ります。元に戻すことはできません。"
+      prestige-confirm-yes: "&a実行する"
+      prestige-confirm-no: "&cキャンセル"
+      hub-title: "EcoJobs"
+      hub-my-jobs: "&a自分のジョブ"
+      hub-my-jobs-lore: "&7ジョブの確認・加入/脱退"
+      hub-leaderboards: "&6ランキング"
+      hub-leaderboards-lore: "&7各ジョブのランキングを見る"
+      hub-settings: "&b設定"
+      hub-settings-lore: "&7クリック音・獲得通知の設定"
+      hub-admin: "&c管理者パネル"
+      hub-admin-lore: "&7ジョブ・倍率・ブースターの管理"
+      hub-boosters: "&d有効なブースター"
+      settings-title: "EcoJobs 設定"
+      settings-sound-title: "&bクリック音"
+      settings-actionbar-title: "&b獲得額のアクションバー表示"
+      settings-on: "&a有効 - クリックで無効化"
+      settings-off: "&7無効 - クリックで有効化"
+      leaderboard-picker-title: "ランキング"
+    admin:
+      title: "EcoJobs 管理"
+      lore-enabled-yes: "&7有効: &aはい"
+      lore-enabled-no: "&7有効: &cいいえ"
+      lore-multiplier: "&7報酬倍率: &f{multiplier}倍"
+      lore-job-booster: "&d★ ブースター: x{money}倍のお金 / x{xp}倍の経験値 &7(残り{minutes}分)"
+      lore-controls-toggle: "&e左クリック: &7有効/無効を切り替え"
+      lore-controls-multiplier-up: "&e右クリック: &7報酬倍率+0.1倍"
+      lore-controls-multiplier-down: "&eシフト+右クリック: &7報酬倍率-0.1倍"
+      lore-controls-leaderboard: "&eシフト+左クリック: &7ランキングを表示"
+      booster-start-title: "&d全体2倍ブースター開始"
+      booster-start-lore: "&7クリックで全ジョブの&fお金と経験値をx{multiplier}倍&7に&f{minutes}分間&7ブースト"
+      booster-stop-title: "&c全ブースター停止"
+      booster-stop-lore: "&7現在{count}個のブースターが有効"
+      leaderboard-title: "{job} ランキング"
+      leaderboard-entry: "&7#{rank} &f{player}"
+      leaderboard-lore: "&7レベル{level} (P{prestige}) &7- {xp} xp"
+
+# Display names for each job id, shown in /jobs list, /jobs stats, /jobs top, and the GUI menu.
+# Each name is prefixed with a & color code so job icons/text stand out in the GUI and chat
+# instead of showing as plain white - see Messages#jobName and its callers.
+job-names:
+  en:
+    # Colors are assigned by theme family, not per-job at random - 20 jobs can't each get a
+    # unique legacy color (only 15 are legible against the GUI's dark tooltip background; &0
+    # black is unreadable there), so where two jobs share a color it's a deliberate pairing
+    # within the same family: hunter/slayer (kill-based combat), builder/beekeeper (warm
+    # earth tones), woodcutter/crafter (wood), farmer/merchant (growth and value are both
+    # "green" in Minecraft's own visual language), fisherman/explorer (outdoor/adventure).
+    miner: "&7Miner&r"
+    digger: "&8Digger&r"
+    woodcutter: "&2Woodcutter&r"
+    farmer: "&aFarmer&r"
+    builder: "&6Builder&r"
+    fisherman: "&bFisherman&r"
+    treasurehunter: "&eTreasure Hunter&r"
+    hunter: "&4Hunter&r"
+    archer: "&3Archer&r"
+    slayer: "&4Slayer&r"
+    warrior: "&9Warrior&r"
+    breeder: "&dBreeder&r"
+    tamer: "&1Tamer&r"
+    shearer: "&fShearer&r"
+    beekeeper: "&6Beekeeper&r"
+    enchanter: "&5Enchanter&r"
+    smelter: "&cSmelter&r"
+    crafter: "&2Crafter&r"
+    merchant: "&aMerchant&r"
+    explorer: "&bExplorer&r"
+  ja:
+    # Same color-family scheme as job-names.en above - keep both in sync.
+    miner: "&7採掘工&r"
+    digger: "&8穴掘り師&r"
+    woodcutter: "&2木こり&r"
+    farmer: "&a農家&r"
+    builder: "&6建築士&r"
+    fisherman: "&b漁師&r"
+    treasurehunter: "&eお宝ハンター&r"
+    hunter: "&4ハンター&r"
+    archer: "&3弓術師&r"
+    slayer: "&4討伐者&r"
+    warrior: "&9戦士&r"
+    breeder: "&d繁殖家&r"
+    tamer: "&1調教師&r"
+    shearer: "&f毛刈り師&r"
+    beekeeper: "&6養蜂家&r"
+    enchanter: "&5魔道士&r"
+    smelter: "&c製錬工&r"
+    crafter: "&2職人&r"
+    merchant: "&a商人&r"
+    explorer: "&b探検家&r"

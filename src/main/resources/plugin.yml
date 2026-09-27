@@ -1,0 +1,30 @@
+name: EcoJobs
+version: '1.0.0'
+main: com.yamakotaro.ecojobs.EcoJobsPlugin
+api-version: '1.20'
+author: yamakotaro0328
+description: 20 jobs that pay players for everyday survival actions, with per-job levels.
+# EvenMoreFish は任意連携 (導入されていればカスタム魚をレア度別に支払う)。EcoJobsより先に
+# 読み込ませたいので softdepend に入れているが、コンパイル時の依存は無くリフレクションのみ
+# (listeners/EvenMoreFishBridge 参照) なので、未導入でも問題なく動く。
+softdepend: [Vault, PlaceholderAPI, EvenMoreFish]
+
+commands:
+  jobs:
+    description: Open the jobs menu (or join/leave jobs, see your stats, browse leaderboards, and prestige)
+    usage: /jobs [join|leave|list|stats|top|menu|info|prestige|admin|booster|reload] [args]
+    aliases: [job]
+
+permissions:
+  ecojobs.use:
+    description: Can join/leave/prestige jobs and see your own stats
+    default: true
+  ecojobs.top:
+    description: Can view job leaderboards
+    default: true
+  ecojobs.bypass.maxjobs:
+    description: Not limited by max-concurrent-jobs in config.yml
+    default: false
+  ecojobs.admin:
+    description: Can use /jobs reload, /jobs admin, and /jobs booster
+    default: op
