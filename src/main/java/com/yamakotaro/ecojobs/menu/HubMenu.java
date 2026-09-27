@@ -72,9 +72,11 @@ public class HubMenu extends Menu {
       Map<String, PlayerJobProgress> all = this.ctx.playerJobManager().allProgress(this.viewer.getUniqueId());
       int totalLevel = 0;
       int prestige = 0;
+      double earned = 0.0;
       for (PlayerJobProgress progress : all.values()) {
          totalLevel += progress.getLevel();
          prestige += progress.getPrestige();
+         earned += progress.getEarned();
       }
 
       int joined = this.ctx.playerJobManager().joinedJobs(this.viewer.getUniqueId()).size();
@@ -85,18 +87,19 @@ public class HubMenu extends Menu {
             "total_level", String.valueOf(totalLevel),
             "prestige", String.valueOf(prestige),
             "joined", String.valueOf(joined),
-            "max", String.valueOf(this.ctx.jobManager().maxConcurrentJobs())
+            "max", String.valueOf(this.ctx.jobManager().maxConcurrentJobs()),
+            "earned", MoneyFormat.format(earned)
          )));
       if (this.ctx.questManager().isEnabled()) {
          int done = this.ctx.questManager().completedCount(this.viewer);
          int total = this.ctx.questManager().questsFor(this.viewer).size();
-         icon.lore(this.ctx.text("hub.profile-quests", Map.of("completed", String.valueOf(done), "total", String.valueOf(total))));
+         icon.lore(this.ctx.text("hub.profile-quests", Map.of("completed", String.valueOf(done), "total", String.valueOf(total), "streak", String.valueOf(this.ctx.questManager().currentStreak(this.viewer.getUniqueId())))));
       }
 
       double cap = this.ctx.plugin().config().getDouble("anti-farm.max-money-per-hour", 0.0);
       if (cap > 0.0) {
-         double earned = this.ctx.playerJobManager().hourlyEarned(this.viewer.getUniqueId());
-         icon.lore(this.ctx.text("hub.profile-hourly", Map.of("earned", MoneyFormat.format(earned), "cap", MoneyFormat.format(cap), "bar", Layout.bar(earned, cap, 10))));
+         double hourly = this.ctx.playerJobManager().hourlyEarned(this.viewer.getUniqueId());
+         icon.lore(this.ctx.text("hub.profile-hourly", Map.of("earned", MoneyFormat.format(hourly), "cap", MoneyFormat.format(cap), "bar", Layout.bar(hourly, cap, 10))));
       }
 
       return icon.build();

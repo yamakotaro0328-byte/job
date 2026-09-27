@@ -61,6 +61,21 @@ public class MySqlJobStorage implements JobStorage {
          } catch (SQLException var7) {
             this.plugin.getLogger().log(Level.SEVERE, "Failed to create EcoJobs tables", (Throwable)var7);
          }
+
+         // Columns added in 1.1.0. MySQL has no "ADD COLUMN IF NOT EXISTS", so just ignore the
+         // duplicate-column error (1060) on databases that already have them.
+         this.addColumnIfMissing(conn, this.progressTable, "earned DOUBLE NOT NULL DEFAULT 0");
+         this.addColumnIfMissing(conn, this.progressTable, "actions BIGINT NOT NULL DEFAULT 0");
+      }
+   }
+
+   private void addColumnIfMissing(Connection conn, String table, String columnDefinition) {
+      try (Statement statement = conn.createStatement()) {
+         statement.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + columnDefinition);
+      } catch (SQLException var9) {
+         if (var9.getErrorCode() != 1060) {
+            this.plugin.getLogger().log(Level.WARNING, "Failed to add column to " + table + ": " + columnDefinition, (Throwable)var9);
+         }
       }
    }
 
@@ -88,12 +103,15 @@ public class MySqlJobStorage implements JobStorage {
 
          try (
             Statement statement = conn.createStatement();
-            ResultSet rs = statement.executeQuery("SELECT uuid, job_id, level, xp, prestige, joined FROM " + this.progressTable);
+            ResultSet rs = statement.executeQuery("SELECT uuid, job_id, level, xp, prestige, joined, earned, actions FROM " + this.progressTable);
          ) {
             while (rs.next()) {
                PlayerJobData playerData = data.get(UUID.fromString(rs.getString("uuid")));
                if (playerData != null) {
-                  playerData.getProgress().put(rs.getString("job_id"), new PlayerJobProgress(rs.getInt("level"), rs.getDouble("xp"), rs.getInt("prestige")));
+                  PlayerJobProgress progress = new PlayerJobProgress(rs.getInt("level"), rs.getDouble("xp"), rs.getInt("prestige"));
+                  progress.setEarned(rs.getDouble("earned"));
+                  progress.setActions(rs.getLong("actions"));
+                  playerData.getProgress().put(rs.getString("job_id"), progress);
                   if (rs.getBoolean("joined")) {
                      playerData.getJoined().add(rs.getString("job_id"));
                   }
@@ -149,7 +167,7 @@ public class MySqlJobStorage implements JobStorage {
                PreparedStatement progressStatement = conn.prepareStatement(
                   "INSERT INTO "
                      + this.progressTable
-                     + " (uuid, job_id, level, xp, prestige, joined) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE level = VALUES(level), xp = VALUES(xp), prestige = VALUES(prestige), joined = VALUES(joined)"
+                     + " (uuid, job_id, level, xp, prestige, joined, earned, actions) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE level = VALUES(level), xp = VALUES(xp), prestige = VALUES(prestige), joined = VALUES(joined), earned = VALUES(earned), actions = VALUES(actions)"
                );
                PreparedStatement explorerStatement = conn.prepareStatement(
                   "INSERT INTO " + this.explorerTable + " (uuid, world, distance) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE distance = VALUES(distance)"
@@ -175,6 +193,8 @@ public class MySqlJobStorage implements JobStorage {
                         progressStatement.setDouble(4, progress.getXp());
                         progressStatement.setInt(5, progress.getPrestige());
                         progressStatement.setBoolean(6, playerData.getJoined().contains(entry.getKey()));
+                        progressStatement.setDouble(7, progress.getEarned());
+                        progressStatement.setLong(8, progress.getActions());
                         progressStatement.addBatch();
                      }
 

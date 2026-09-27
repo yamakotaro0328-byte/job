@@ -4,7 +4,7 @@
   <groupId>com.yamakotaro</groupId>
   <artifactId>ecojobs</artifactId>
   <name>EcoJobs</name>
-  <version>1.1.0</version>
+  <version>1.2.0</version>
   <description>Standalone, EcoTP-independent plugin: 20 jobs (miner, woodcutter, farmer, fisherman,
         hunter, and more) that pay players for everyday survival actions, with per-job levels that
         increase payout over time. Pays out through Vault if present.</description>

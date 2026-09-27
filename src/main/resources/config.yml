@@ -110,6 +110,11 @@ anti-farm:
   # (日本語) 1時間あたりに行動報酬で稼げるお金の上限(0で無制限)。経験値は制限されず、
   # デイリークエストの報酬も対象外。ecojobs.bypass.hourlycap 権限で無視できる。
   max-money-per-hour: 0
+  # No pay (or quest progress) after this many seconds without camera movement/chat/commands/
+  # inventory clicks - stops AFK fishing and mob farms. 0 = off. ecojobs.bypass.afk skips it.
+  # (日本語) 視点移動・チャット・コマンド・インベントリ操作がこの秒数ないと報酬(とクエスト進行)
+  # なし。放置釣り・放置トラップ対策。0で無効。ecojobs.bypass.afk 権限で無視。
+  afk-seconds: 180
 
 # Daily quests: each player gets per-day tasks drawn from the jobs they've joined, e.g. "Miner:
 # break Iron ore x40". Completing one pays (normal pay for that work) x reward-multiplier on top of
@@ -127,6 +132,11 @@ quests:
   max-amount: 128
   reward-multiplier: 2.0
   all-complete-bonus-money: 500
+  # Clearing every quest on consecutive days raises the all-clear bonus by this much per extra
+  # day (0.1 = +10%), up to streak-max-days. (日本語) 連続で全達成すると1日ごとに全達成ボーナスが
+  # この割合だけ増える(0.1 = +10%)。上限は streak-max-days 日分。
+  streak-bonus-per-day: 0.1
+  streak-max-days: 7
   reset-timezone: Asia/Tokyo
   excluded-actions: [kill-player, catch-emf-fish]
 
@@ -151,6 +161,41 @@ reward-commands:
     miner:
       100: []
   prestige: []
+
+# Rank titles by level, shown in the GUI, the level-up title and %ecojobs_title_<job>%. Add
+# job-titles.<job> to give one job its own set. (日本語) レベルごとの称号。GUI・レベルアップ演出・
+# %ecojobs_title_<ジョブ>% で表示。job-titles.<ジョブ名> を追加するとそのジョブ専用の称号にできる。
+job-titles:
+  default:
+    1: "&7見習い"
+    10: "&f駆け出し"
+    25: "&a一人前"
+    50: "&b熟練"
+    75: "&d達人"
+    100: "&6&l伝説"
+
+# On-screen title and particles on level-up (bigger effect on milestone levels).
+# (日本語) レベルアップ時の画面タイトルとパーティクル(マイルストーンでは豪華に)。
+level-up-effects:
+  title: true
+  particles: true
+
+# Happy hours: boosters that start by themselves on the given days/times. days: MON..SUN (or
+# ALL); scope: "all" or a job id. Won't override a booster an admin started by hand.
+# (日本語) ハッピーアワー: 指定した曜日・時間に自動で始まるブースター。days は MON〜SUN
+# (または ALL)、scope は "all" かジョブ名。手動のブースター中は上書きしない。
+scheduled-boosters:
+  enabled: false
+  timezone: Asia/Tokyo
+  list:
+    weekend-night:
+      name: "週末ナイトブースト"
+      days: [SAT, SUN]
+      start: "20:00"
+      end: "22:00"
+      scope: all
+      money: 1.5
+      xp: 1.5
 
 # Every other job: a map of action-type -> (material/entity name, or "default") -> {money, xp}.
 # Material/entity names are the same names used in Java's Material/EntityType enums (as shown in
@@ -451,12 +496,23 @@ messages:
       player-not-found: "&cPlayer '{player}' not found."
       reloaded: "&aEcoJobs config reloaded."
     jobs:
-      usage: "&cUsage: /jobs <join|leave|list|stats|top|menu|info|prestige|quests|admin|booster|reload> [args]"
+      usage: "&cUsage: /jobs <join|leave|list|stats|top|menu|info|prestige|quests|admin|booster|reload|setlevel|addxp|resetjob> [args]"
       page-footer: "&7--- Page {page}/{pages} - add a page number to see more ---"
       unknown-job: "&cUnknown job '{job}'. Use /jobs list to see available jobs."
       job-disabled: "&cThe {job} job is currently disabled by an admin."
       already-joined: "&cYou're already in the {job} job."
       hourly-cap-reached: "&eYou've hit this hour's job pay cap ({cap}). You still earn job xp, and pay resumes next hour."
+      afk: "&7You look AFK - job pay is paused until you move your camera."
+      level-up-title: "&a&lLEVEL UP!"
+      level-up-title-milestone: "&6&l★ MILESTONE ★"
+      level-up-subtitle: "{job} &fLv.{level} &7{title}"
+      booster-scheduled: "&d★ Happy hour! &f{name}&d: &f{scope} &dpays &fx{money} money / x{xp} xp &duntil &f{end}&d!"
+      admin-edit-usage: "&cUsage: /jobs setlevel <player> <job> <level> | addxp <player> <job> <xp> | resetjob <player> <job|all>"
+      admin-setlevel: "&aSet {player}'s {job} to level {level}."
+      admin-addxp: "&aGave {player} {xp} {job} xp."
+      admin-addxp-failed: "&c{player} must be online and in the {job} job."
+      admin-reset: "&aReset {player}'s progress in {job}."
+      admin-edit-failed: "&cCouldn't change {player}'s {job} (no data for that job)."
       not-joined: "&cYou're not in the {job} job."
       max-jobs-reached: "&cYou can only be in {max} jobs at once. Leave one first with /jobs leave <job>."
       joined: "&aJoined the {job} job!"
@@ -567,6 +623,7 @@ messages:
     quests:
       completed: "&6&lQuest complete! &e{job}&7: {action} {target-name} x{amount} &7-> &a+{money} &b+{xp}xp"
       all-completed: "&6&lAll daily quests complete! &aBonus +{money}"
+      streak: "&6✹ {days}-day streak! &7All-clear bonus &a+{bonus}%"
       none: "&7No quests today - join a job first (/jobs join <job>)."
       disabled: "&cDaily quests are disabled on this server."
       reset: "&aReset today's quests for {player}."
@@ -602,8 +659,8 @@ messages:
       hub:
         title: "&8&l» &2&lEcoJobs &8Main Menu"
         profile: "&a&l{player}"
-        profile-lore: "&8━━━━━━━━━━━━━━━━\n&7Total level  &f{total_level}\n&7Prestige     &d✦ {prestige}\n&7Jobs         &f{joined}&7/&f{max}"
-        profile-quests: "&7Daily quests &f{completed}&7/&f{total} done"
+        profile-lore: "&8━━━━━━━━━━━━━━━━\n&7Total level  &f{total_level}\n&7Prestige     &d✦ {prestige}\n&7Jobs         &f{joined}&7/&f{max}\n&7Lifetime pay &a{earned}"
+        profile-quests: "&7Daily quests &f{completed}&7/&f{total} done &6✹{streak}"
         profile-hourly: "&7This hour {bar} &f{earned}&7/&f{cap}"
         jobs: "&a&lJobs"
         jobs-lore: "&7Browse, join and leave jobs\n&7and see their rewards & perks\n\n&e▸ Click to open"
@@ -632,6 +689,8 @@ messages:
         prestige-badge: "&d✦{prestige}"
         xp: "&7XP {bar} &f{percent}%\n&8     {xp} / {next} xp"
         maxed: "&6&l★ MAX LEVEL ★"
+        title: "&7Title &f{title}"
+        earned: "&7Lifetime &a{earned} &8({actions} actions)"
         multiplier: "&7Pay multiplier &ex{multiplier}"
         next-perk: "&7Next perk &fLv.{level} &8({away} to go)"
         hint-join: "&a▸ Left-click &7to join"
@@ -689,6 +748,7 @@ messages:
         title: "&8&l» &6&lDaily Quests"
         header: "&6&lToday's quests"
         header-lore: "&7Done {bar} &f{completed}&7/&f{total}\n&7Resets in &f{reset}"
+        streak: "&6✹ Streak &f{days} days &8(next all-clear +{bonus}%)"
         disabled: "&cDaily quests are disabled"
         none: "&7No quests today"
         none-lore: "&7Join a job to receive quests\n\n&e▸ Click to browse jobs"
@@ -756,12 +816,23 @@ messages:
       player-not-found: "&cプレイヤー「{player}」が見つかりません。"
       reloaded: "&aEcoJobsの設定を再読み込みしました。"
     jobs:
-      usage: "&c使い方: /jobs <join|leave|list|stats|top|menu|info|prestige|quests|admin|booster|reload> [引数]"
+      usage: "&c使い方: /jobs <join|leave|list|stats|top|menu|info|prestige|quests|admin|booster|reload|setlevel|addxp|resetjob> [引数]"
       page-footer: "&7--- {page}/{pages}ページ - ページ番号を指定すると続きが見られます ---"
       unknown-job: "&c不明なジョブ「{job}」です。/jobs list で一覧を確認してください。"
       job-disabled: "&c{job}は現在、管理者により無効化されています。"
       already-joined: "&cすでに{job}に加入しています。"
       hourly-cap-reached: "&e今の1時間で稼げる報酬の上限({cap})に達しました。ジョブ経験値は引き続き獲得でき、報酬は次の時間から再開します。"
+      afk: "&7放置状態のため報酬が止まっています。視点を動かすと再開します。"
+      level-up-title: "&a&lLEVEL UP!"
+      level-up-title-milestone: "&6&l★ マイルストーン達成 ★"
+      level-up-subtitle: "{job} &fLv.{level} &7{title}"
+      booster-scheduled: "&d★ ハッピーアワー！ &f{name}&d: &f{scope}&dの報酬が &fお金x{money} / 経験値x{xp} &d(&f{end}&dまで)"
+      admin-edit-usage: "&c使い方: /jobs setlevel <プレイヤー> <ジョブ> <レベル> | addxp <プレイヤー> <ジョブ> <経験値> | resetjob <プレイヤー> <ジョブ|all>"
+      admin-setlevel: "&a{player}の{job}をレベル{level}に設定しました。"
+      admin-addxp: "&a{player}に{job}の経験値を{xp}付与しました。"
+      admin-addxp-failed: "&c{player}がオンラインで、{job}に加入している必要があります。"
+      admin-reset: "&a{player}の{job}の進行状況をリセットしました。"
+      admin-edit-failed: "&c{player}の{job}を変更できませんでした(データがありません)。"
       not-joined: "&c{job}に加入していません。"
       max-jobs-reached: "&c同時に加入できるのは{max}個までです。/jobs leave <ジョブ名> で1つ脱退してください。"
       joined: "&a{job}に加入しました！"
@@ -873,6 +944,7 @@ messages:
     quests:
       completed: "&6&lクエスト達成! &e{job}&7: {target-name}を{action} x{amount} &7-> &a+{money} &b+{xp}xp"
       all-completed: "&6&l本日のデイリークエストをすべて達成! &aボーナス +{money}"
+      streak: "&6✹ {days}日連続達成！ &7全達成ボーナス &a+{bonus}%"
       none: "&7今日のクエストはありません。まずジョブに加入してください (/jobs join <ジョブ名>)。"
       disabled: "&cこのサーバーではデイリークエストは無効です。"
       reset: "&a{player}の今日のクエストをリセットしました。"
@@ -908,8 +980,8 @@ messages:
       hub:
         title: "&8&l» &2&lEcoJobs &8メインメニュー"
         profile: "&a&l{player}"
-        profile-lore: "&8━━━━━━━━━━━━━━━━\n&7合計レベル  &f{total_level}\n&7プレステージ &d✦ {prestige}\n&7就業中     &f{joined}&7/&f{max}"
-        profile-quests: "&7デイリー    &f{completed}&7/&f{total} 達成"
+        profile-lore: "&8━━━━━━━━━━━━━━━━\n&7合計レベル  &f{total_level}\n&7プレステージ &d✦ {prestige}\n&7就業中     &f{joined}&7/&f{max}\n&7生涯獲得額  &a{earned}"
+        profile-quests: "&7デイリー    &f{completed}&7/&f{total} 達成 &6✹{streak}"
         profile-hourly: "&7今時間の稼ぎ {bar} &f{earned}&7/&f{cap}"
         jobs: "&a&l職業一覧"
         jobs-lore: "&7全職業の確認・加入・脱退\n&7報酬やパークもここから\n\n&e▸ クリックで開く"
@@ -938,6 +1010,8 @@ messages:
         prestige-badge: "&d✦{prestige}"
         xp: "&7経験値 {bar} &f{percent}%\n&8          {xp} / {next} xp"
         maxed: "&6&l★ 最大レベル到達 ★"
+        title: "&7称号 &f{title}"
+        earned: "&7生涯獲得 &a{earned} &8({actions}回)"
         multiplier: "&7報酬倍率 &ex{multiplier}"
         next-perk: "&7次のパーク &fLv.{level} &8(あと{away})"
         hint-join: "&a▸ 左クリック &7加入する"
@@ -995,6 +1069,7 @@ messages:
         title: "&8&l» &6&lデイリークエスト"
         header: "&6&l本日のクエスト"
         header-lore: "&7達成 {bar} &f{completed}&7/&f{total}\n&7リセットまで &f{reset}"
+        streak: "&6✹ 連続達成 &f{days}日 &8(次の全達成 +{bonus}%)"
         disabled: "&cデイリークエストは無効です"
         none: "&7今日のクエストはありません"
         none-lore: "&7職業に就くとクエストが届きます\n\n&e▸ クリックで職業一覧へ"

@@ -51,9 +51,12 @@ public class EcoJobsPlugin extends JavaPlugin {
       this.questManager = new QuestManager(this, jobManager, messages);
       this.questManager.setPlayerJobManager(this.playerJobManager);
       this.playerJobManager.setQuestManager(this.questManager);
+      ActivityTracker activityTracker = new ActivityTracker(this);
+      this.getServer().getPluginManager().registerEvents(activityTracker, this);
+      this.playerJobManager.setActivityTracker(activityTracker);
       this.bossBar = new JobBossBar(this, messages);
       this.playerJobManager.setBossBar(this.bossBar);
-      PlacedBlockTracker placedBlockTracker = new PlacedBlockTracker();
+      PlacedBlockTracker placedBlockTracker = new PlacedBlockTracker(this);
       EvenMoreFishBridge evenMoreFish = new EvenMoreFishBridge(this, this.playerJobManager);
       evenMoreFish.register();
       this.getServer().getPluginManager().registerEvents(new BlockJobListener(this.playerJobManager, placedBlockTracker, jobManager, perkManager), this);
@@ -76,6 +79,7 @@ public class EcoJobsPlugin extends JavaPlugin {
       this.getServer().getScheduler().runTaskTimer(this, this.playerJobManager::flushEarnedActionBars, 5L, 5L);
       this.getServer().getScheduler().runTaskTimer(this, this.bossBar::tick, 20L, 20L);
       this.getServer().getScheduler().runTaskTimer(this, this.questManager::save, 6000L, 6000L);
+      this.getServer().getScheduler().runTaskTimer(this, new BoosterScheduler(this, boosterManager, messages), 100L, 600L);
    }
 
    public void onDisable() {
@@ -108,7 +112,7 @@ public class EcoJobsPlugin extends JavaPlugin {
             return;
          }
 
-         for (String path : List.of("quests", "bossbar", "reward-commands", "anti-farm.spawn-reason-multipliers", "anti-farm.max-money-per-hour")) {
+         for (String path : List.of("quests", "bossbar", "reward-commands", "anti-farm.spawn-reason-multipliers", "anti-farm.max-money-per-hour", "anti-farm.afk-seconds", "job-titles", "level-up-effects", "scheduled-boosters")) {
             if (!this.config.isSet(path) && bundled.isSet(path)) {
                this.config.set(path, bundled.get(path));
             }

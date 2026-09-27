@@ -107,6 +107,11 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
             case "quest":
                this.handleQuests(sender, args);
                break;
+            case "setlevel":
+            case "addxp":
+            case "resetjob":
+               this.handleAdminEdit(sender, args);
+               break;
             default:
                sender.sendMessage(this.messages.get("jobs.usage", Map.of()));
          }
@@ -596,6 +601,68 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
       return scope.equals("all") ? this.messages.raw("jobs.booster-scope-all", Map.of()) : this.messages.jobName(scope);
    }
 
+   /** /jobs setlevel <player> <job> <level> | addxp <player> <job> <xp> | resetjob <player> <job|all> */
+   private void handleAdminEdit(CommandSender sender, String[] args) {
+      if (!sender.hasPermission("ecojobs.admin")) {
+         sender.sendMessage(this.messages.get("general.no-permission", Map.of()));
+         return;
+      }
+
+      String sub = args[0].toLowerCase();
+      int needed = sub.equals("resetjob") ? 3 : 4;
+      if (args.length != needed) {
+         sender.sendMessage(this.messages.get("jobs.admin-edit-usage", Map.of()));
+         return;
+      }
+
+      Player online = Bukkit.getPlayerExact(args[1]);
+      UUID uuid = online != null ? online.getUniqueId() : this.playerJobManager.findByName(args[1]);
+      if (uuid == null) {
+         sender.sendMessage(this.messages.get("general.player-not-found", Map.of("player", args[1])));
+         return;
+      }
+
+      String name = online != null ? online.getName() : this.playerJobManager.nameOf(uuid);
+      String jobId = args[2].toLowerCase();
+      boolean allJobs = sub.equals("resetjob") && jobId.equals("all");
+      if (!allJobs && this.jobManager.get(jobId) == null) {
+         sender.sendMessage(this.messages.get("jobs.unknown-job", Map.of("job", jobId)));
+         return;
+      }
+
+      String jobLabel = allJobs ? this.messages.raw("jobs.booster-scope-all", Map.of()) : this.messages.jobName(jobId);
+      switch (sub) {
+         case "setlevel" -> {
+            int level;
+            try {
+               level = Integer.parseInt(args[3]);
+            } catch (NumberFormatException var12) {
+               sender.sendMessage(this.messages.get("jobs.admin-edit-usage", Map.of()));
+               return;
+            }
+
+            boolean ok = this.playerJobManager.setLevel(uuid, jobId, level);
+            sender.sendMessage(this.messages.get(ok ? "jobs.admin-setlevel" : "jobs.admin-edit-failed", Map.of("player", name, "job", jobLabel, "level", String.valueOf(level))));
+         }
+         case "addxp" -> {
+            double xp;
+            try {
+               xp = Double.parseDouble(args[3]);
+            } catch (NumberFormatException var11) {
+               sender.sendMessage(this.messages.get("jobs.admin-edit-usage", Map.of()));
+               return;
+            }
+
+            boolean ok = online != null && xp > 0.0 && this.playerJobManager.addXp(online, jobId, xp);
+            sender.sendMessage(this.messages.get(ok ? "jobs.admin-addxp" : "jobs.admin-addxp-failed", Map.of("player", name, "job", jobLabel, "xp", String.format("%.0f", xp))));
+         }
+         default -> {
+            boolean ok = this.playerJobManager.resetProgress(uuid, allJobs ? null : jobId);
+            sender.sendMessage(this.messages.get(ok ? "jobs.admin-reset" : "jobs.admin-edit-failed", Map.of("player", name, "job", jobLabel)));
+         }
+      }
+   }
+
    private void handleReload(CommandSender sender) {
       if (!sender.hasPermission("ecojobs.admin")) {
          sender.sendMessage(this.messages.get("general.no-permission", Map.of()));
@@ -637,18 +704,28 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
       if (args.length == 1) {
          return TabCompleteUtil.filterPrefix(
-            List.of("join", "leave", "list", "stats", "top", "menu", "info", "prestige", "quests", "admin", "booster", "reload"), args[0]
+            sender.hasPermission("ecojobs.admin")
+               ? List.of("join", "leave", "list", "stats", "top", "menu", "info", "prestige", "quests", "admin", "booster", "reload", "setlevel", "addxp", "resetjob")
+               : List.of("join", "leave", "list", "stats", "top", "menu", "info", "prestige", "quests"),
+            args[0]
          );
       } else if (args.length == 2) {
          String var7 = args[0].toLowerCase();
 
          return switch (var7) {
             case "join", "leave", "top", "info", "prestige" -> TabCompleteUtil.filterPrefix(new ArrayList<>(this.jobManager.all().keySet()), args[1]);
-            case "stats" -> TabCompleteUtil.onlinePlayerNames(args[1], null);
+            case "stats", "setlevel", "addxp", "resetjob" -> TabCompleteUtil.onlinePlayerNames(args[1], null);
             case "booster" -> TabCompleteUtil.filterPrefix(List.of("start", "stop", "list"), args[1]);
             case "quests" -> sender.hasPermission("ecojobs.admin") ? TabCompleteUtil.filterPrefix(List.of("reset"), args[1]) : Collections.emptyList();
             default -> Collections.emptyList();
          };
+      } else if (args.length == 3 && List.of("setlevel", "addxp", "resetjob").contains(args[0].toLowerCase())) {
+         List<String> jobs = new ArrayList<>(this.jobManager.all().keySet());
+         if (args[0].equalsIgnoreCase("resetjob")) {
+            jobs.add("all");
+         }
+
+         return TabCompleteUtil.filterPrefix(jobs, args[2]);
       } else if (args.length == 3 && args[0].equalsIgnoreCase("quests") && args[1].equalsIgnoreCase("reset")) {
          return TabCompleteUtil.onlinePlayerNames(args[2], null);
       } else if (args.length != 3 || !args[0].equalsIgnoreCase("booster") || !args[1].equalsIgnoreCase("start") && !args[1].equalsIgnoreCase("stop")) {

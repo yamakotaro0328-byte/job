@@ -66,6 +66,9 @@ public class YamlJobStorage implements JobStorage {
                               .put(
                                  jobId, new PlayerJobProgress(jobSection.getInt("level", 1), jobSection.getDouble("xp", 0.0), jobSection.getInt("prestige", 0))
                               );
+                           PlayerJobProgress loaded = playerData.getProgress().get(jobId);
+                           loaded.setEarned(jobSection.getDouble("earned", 0.0));
+                           loaded.setActions(jobSection.getLong("actions", 0L));
                            if (jobSection.getBoolean("joined", true)) {
                               playerData.getJoined().add(jobId);
                            }
@@ -106,6 +109,8 @@ public class YamlJobStorage implements JobStorage {
             yaml.set(jobBase + ".level", jobEntry.getValue().getLevel());
             yaml.set(jobBase + ".xp", jobEntry.getValue().getXp());
             yaml.set(jobBase + ".prestige", jobEntry.getValue().getPrestige());
+            yaml.set(jobBase + ".earned", jobEntry.getValue().getEarned());
+            yaml.set(jobBase + ".actions", jobEntry.getValue().getActions());
             yaml.set(jobBase + ".joined", playerData.getJoined().contains(jobEntry.getKey()));
          }
       }

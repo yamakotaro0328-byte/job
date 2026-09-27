@@ -32,6 +32,7 @@ public class QuestManager {
    private final Messages messages;
    private final File file;
    private final Map<UUID, DailyQuests> quests = new HashMap<>();
+   private final Map<UUID, Streak> streaks = new HashMap<>();
    private PlayerJobManager playerJobManager;
    private boolean dirty;
 
@@ -76,6 +77,37 @@ public class QuestManager {
 
       long next = LocalDate.now(zone).plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli();
       return Math.max(0L, next - System.currentTimeMillis());
+   }
+
+   /** Days in a row the player has cleared every quest (0 once a day is missed). */
+   public int currentStreak(UUID uuid) {
+      Streak streak = this.streaks.get(uuid);
+      if (streak == null) {
+         return 0;
+      }
+
+      String today = this.today();
+      return streak.lastDate.equals(today) || streak.lastDate.equals(LocalDate.parse(today).minusDays(1L).toString()) ? streak.days : 0;
+   }
+
+   /** Called when the player clears today's set; returns the new streak length. */
+   private int advanceStreak(UUID uuid) {
+      String today = this.today();
+      int days = this.currentStreak(uuid);
+      Streak existing = this.streaks.get(uuid);
+      if (existing == null || !existing.lastDate.equals(today)) {
+         days++;
+      }
+
+      this.streaks.put(uuid, new Streak(Math.max(1, days), today));
+      this.dirty = true;
+      return Math.max(1, days);
+   }
+
+   /** All-clear bonus multiplier: +streak-bonus-per-day for each consecutive day after the first, capped. */
+   public double streakMultiplier(int streak) {
+      int counted = Math.min(Math.max(0, streak - 1), Math.max(0, this.cfg().getInt("streak-max-days", 7)));
+      return 1.0 + counted * this.cfg().getDouble("streak-bonus-per-day", 0.1);
    }
 
    public double allCompleteBonus() {
@@ -195,9 +227,16 @@ public class QuestManager {
       }
 
       if (completedAny && list.stream().allMatch(q -> q.completed)) {
-         double bonus = this.allCompleteBonus();
+         int streak = this.advanceStreak(player.getUniqueId());
+         double bonus = this.allCompleteBonus() * this.streakMultiplier(streak);
          this.playerJobManager.grantBonus(player, null, bonus, 0.0);
          player.sendMessage(this.messages.get("quests.all-completed", Map.of("money", MoneyFormat.format(bonus))));
+         if (streak > 1) {
+            player.sendMessage(this.messages.get("quests.streak", Map.of(
+               "days", String.valueOf(streak),
+               "bonus", String.format("%.0f", (this.streakMultiplier(streak) - 1.0) * 100.0)
+            )));
+         }
       }
    }
 
@@ -239,7 +278,24 @@ public class QuestManager {
          return;
       }
       YamlConfiguration yaml = YamlConfiguration.loadConfiguration(this.file);
+      ConfigurationSection streakSection = yaml.getConfigurationSection("streaks");
+      if (streakSection != null) {
+         for (String uuidString : streakSection.getKeys(false)) {
+            try {
+               this.streaks.put(
+                  UUID.fromString(uuidString),
+                  new Streak(streakSection.getInt(uuidString + ".days"), streakSection.getString(uuidString + ".last", ""))
+               );
+            } catch (IllegalArgumentException var7) {
+            }
+         }
+      }
+
       for (String uuidString : yaml.getKeys(false)) {
+         if (uuidString.equals("streaks")) {
+            continue;
+         }
+
          ConfigurationSection section = yaml.getConfigurationSection(uuidString);
          if (section == null) {
             continue;
@@ -294,12 +350,20 @@ public class QuestManager {
          yaml.set(base + ".date", entry.getValue().date);
          yaml.set(base + ".quests", list);
       }
+      for (Entry<UUID, Streak> entry : this.streaks.entrySet()) {
+         yaml.set("streaks." + entry.getKey() + ".days", entry.getValue().days);
+         yaml.set("streaks." + entry.getKey() + ".last", entry.getValue().lastDate);
+      }
+
       try {
          yaml.save(this.file);
          this.dirty = false;
       } catch (IOException var8) {
          this.plugin.getLogger().warning("Could not save quests.yml: " + var8.getMessage());
       }
+   }
+
+   private record Streak(int days, String lastDate) {
    }
 
    private record DailyQuests(String date, List<Quest> quests) {

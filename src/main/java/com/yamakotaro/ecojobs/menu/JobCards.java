@@ -1,6 +1,7 @@
 package com.yamakotaro.ecojobs.menu;
 
 import com.yamakotaro.ecojobs.JobDefinition;
+import com.yamakotaro.ecojobs.MoneyFormat;
 import com.yamakotaro.ecojobs.PerkDefinition;
 import com.yamakotaro.ecojobs.PlayerJobProgress;
 import java.util.Map;
@@ -34,6 +35,8 @@ final class JobCards {
             "max", String.valueOf(maxLevel),
             "prestige", progress.getPrestige() > 0 ? ctx.raw("card.prestige-badge", Map.of("prestige", String.valueOf(progress.getPrestige()))) : ""
          )));
+         icon.lore(ctx.text("card.title", Map.of("title", ctx.playerJobManager().titleFor(jobId, progress.getLevel()))));
+         icon.lore(ctx.text("card.earned", Map.of("earned", MoneyFormat.format(progress.getEarned()), "actions", String.format("%,d", progress.getActions()))));
          if (maxed) {
             icon.lore(ctx.text("card.maxed"));
          } else {

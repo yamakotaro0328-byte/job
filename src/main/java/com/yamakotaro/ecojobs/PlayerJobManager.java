@@ -12,7 +12,12 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.Map.Entry;
 import net.milkbowl.vault.economy.Economy;
+import java.time.Duration;
+import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
@@ -34,6 +39,8 @@ public class PlayerJobManager {
    private boolean noEconomyWarned;
    private QuestManager questManager;
    private JobBossBar bossBar;
+   private ActivityTracker activityTracker;
+   private final Set<UUID> afkWarned = new HashSet<>();
 
    public PlayerJobManager(
       EcoJobsPlugin plugin,
@@ -58,6 +65,10 @@ public class PlayerJobManager {
 
    public void setQuestManager(QuestManager questManager) {
       this.questManager = questManager;
+   }
+
+   public void setActivityTracker(ActivityTracker activityTracker) {
+      this.activityTracker = activityTracker;
    }
 
    public void setBossBar(JobBossBar bossBar) {
@@ -213,8 +224,8 @@ public class PlayerJobManager {
          if (actionReward != null) {
             PlayerJobProgress progress = this.joinedJobs(player.getUniqueId()).get(job.getId());
             if (progress != null) {
-               this.applyReward(player, job, progress, actionReward.moneyFor(scale) * payMultiplier, actionReward.xpFor(scale) * payMultiplier);
-               if (this.questManager != null) {
+               boolean paid = this.applyReward(player, job, progress, actionReward.moneyFor(scale) * payMultiplier, actionReward.xpFor(scale) * payMultiplier);
+               if (paid && this.questManager != null) {
                   this.questManager.onAction(player, job.getId(), actionType, key, scale);
                }
             }
@@ -246,8 +257,18 @@ public class PlayerJobManager {
       }
    }
 
-   private void applyReward(Player player, JobDefinition job, PlayerJobProgress progress, double baseMoney, double baseXp) {
+   private boolean applyReward(Player player, JobDefinition job, PlayerJobProgress progress, double baseMoney, double baseXp) {
+      if (this.activityTracker != null && this.activityTracker.isAfk(player)) {
+         if (this.afkWarned.add(player.getUniqueId())) {
+            player.sendActionBar(this.messages.get("jobs.afk", Map.of()));
+         }
+
+         return false;
+      }
+
+      this.afkWarned.remove(player.getUniqueId());
       int effectiveLevel = this.perkManager.effectiveLevel(progress);
+      progress.setActions(progress.getActions() + 1L);
       double money = baseMoney * this.moneyMultiplier(job, progress);
       double xp = baseXp * this.boosterManager.xpMultiplierFor(job.getId());
       money = this.applyHourlyCap(player, money);
@@ -255,6 +276,7 @@ public class PlayerJobManager {
          Economy economy = this.economyHolder.get();
          if (economy != null) {
             economy.depositPlayer(player, money);
+            progress.setEarned(progress.getEarned() + money);
             if (this.isActionBarEnabled(player)) {
                this.queueEarnedActionBar(player.getUniqueId(), job.getId(), money);
             }
@@ -276,6 +298,7 @@ public class PlayerJobManager {
       }
 
       this.markDirty(player.getUniqueId());
+      return true;
    }
 
    /**
@@ -292,6 +315,11 @@ public class PlayerJobManager {
 
       JobDefinition job = jobId == null ? null : this.jobManager.get(jobId);
       PlayerJobProgress progress = job == null ? null : this.joinedJobs(player.getUniqueId()).get(job.getId());
+      if (progress != null && money > 0.0 && this.economyHolder.get() != null) {
+         progress.setEarned(progress.getEarned() + money);
+         this.markDirty(player.getUniqueId());
+      }
+
       if (progress != null && xp > 0.0) {
          progress.setXp(progress.getXp() + xp);
          this.checkLevelUp(player, job, progress);
@@ -380,6 +408,101 @@ public class PlayerJobManager {
       return this.sortedTop(jobId).size();
    }
 
+   /** Big on-screen title + particles on level-up (level-up-effects in config.yml). */
+   private void levelUpEffects(Player player, String jobId, int level) {
+      boolean milestone = this.jobManager.milestoneLevels().contains(level);
+      if (this.plugin.config().getBoolean("level-up-effects.title", true)) {
+         Map<String, String> placeholders = Map.of("job", this.messages.jobName(jobId), "level", String.valueOf(level), "title", this.titleFor(jobId, level));
+         player.showTitle(Title.title(
+            this.messages.get(milestone ? "jobs.level-up-title-milestone" : "jobs.level-up-title", placeholders),
+            this.messages.get("jobs.level-up-subtitle", placeholders),
+            Title.Times.times(Duration.ofMillis(200L), Duration.ofMillis(1500L), Duration.ofMillis(500L))
+         ));
+      }
+
+      if (this.plugin.config().getBoolean("level-up-effects.particles", true)) {
+         Location at = player.getLocation().add(0.0, 1.0, 0.0);
+         player.getWorld().spawnParticle(milestone ? Particle.TOTEM_OF_UNDYING : Particle.HAPPY_VILLAGER, at, milestone ? 80 : 25, 0.5, 0.8, 0.5, milestone ? 0.4 : 0.1);
+      }
+   }
+
+   /**
+    * Rank title for a level, e.g. "Apprentice"/"Master": the highest job-titles entry at or below
+    * the level, from job-titles.&lt;job&gt; if present, else job-titles.default.
+    */
+   public String titleFor(String jobId, int level) {
+      ConfigurationSection section = this.plugin.config().getConfigurationSection("job-titles." + jobId);
+      if (section == null) {
+         section = this.plugin.config().getConfigurationSection("job-titles.default");
+      }
+
+      if (section == null) {
+         return "";
+      }
+
+      String best = "";
+      int bestLevel = Integer.MIN_VALUE;
+      for (String key : section.getKeys(false)) {
+         try {
+            int at = Integer.parseInt(key);
+            if (at <= level && at > bestLevel) {
+               bestLevel = at;
+               best = section.getString(key, "");
+            }
+         } catch (NumberFormatException var9) {
+         }
+      }
+
+      return best;
+   }
+
+   // ---- admin operations (/jobs setlevel|addxp|resetjob) ----
+
+   /** Sets the level (xp back to 0). Works for offline players; creates progress if missing. */
+   public boolean setLevel(UUID uuid, String jobId, int level) {
+      PlayerJobData playerData = this.data.get(uuid);
+      if (playerData == null || this.jobManager.get(jobId) == null) {
+         return false;
+      }
+
+      PlayerJobProgress progress = playerData.getProgress().computeIfAbsent(jobId, k -> new PlayerJobProgress(1, 0.0));
+      progress.setLevel(Math.max(1, Math.min(this.jobManager.maxLevel(), level)));
+      progress.setXp(0.0);
+      this.markDirty(uuid);
+      return true;
+   }
+
+   /** Adds job xp to an online player's joined job, with normal level-ups. */
+   public boolean addXp(Player player, String jobId, double xp) {
+      if (this.joinedJobs(player.getUniqueId()).get(jobId) == null) {
+         return false;
+      }
+
+      this.grantBonus(player, jobId, 0.0, xp);
+      return true;
+   }
+
+   /** Wipes a job's progress (or every job's when jobId is null). Joined status is kept. */
+   public boolean resetProgress(UUID uuid, String jobId) {
+      PlayerJobData playerData = this.data.get(uuid);
+      if (playerData == null) {
+         return false;
+      }
+
+      if (jobId == null) {
+         for (String id : playerData.getProgress().keySet()) {
+            playerData.getProgress().put(id, new PlayerJobProgress(1, 0.0));
+         }
+      } else if (playerData.getProgress().containsKey(jobId)) {
+         playerData.getProgress().put(jobId, new PlayerJobProgress(1, 0.0));
+      } else {
+         return false;
+      }
+
+      this.markDirty(uuid);
+      return true;
+   }
+
    private void queueEarnedActionBar(UUID uuid, String jobId, double money) {
       this.pendingEarnings.computeIfAbsent(uuid, k -> new HashMap<>()).merge(jobId, money, Double::sum);
    }
@@ -418,6 +541,8 @@ public class PlayerJobManager {
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 1.0F);
          }
 
+         this.levelUpEffects(player, job.getId(), progress.getLevel());
+
          this.runRewardCommands("reward-commands.every-level", player, job.getId(), progress.getLevel(), progress.getPrestige());
          this.runRewardCommands("reward-commands.levels." + progress.getLevel(), player, job.getId(), progress.getLevel(), progress.getPrestige());
          this.runRewardCommands("reward-commands.jobs." + job.getId() + "." + progress.getLevel(), player, job.getId(), progress.getLevel(), progress.getPrestige());
@@ -441,6 +566,10 @@ public class PlayerJobManager {
          Economy economy = this.economyHolder.get();
          if (economy != null) {
             economy.depositPlayer(player, money);
+            PlayerJobProgress progress = this.allProgress(player.getUniqueId()).get(job.getId());
+            if (progress != null) {
+               progress.setEarned(progress.getEarned() + money);
+            }
          }
       }
 

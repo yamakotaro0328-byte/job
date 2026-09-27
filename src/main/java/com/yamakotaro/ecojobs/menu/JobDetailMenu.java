@@ -88,6 +88,8 @@ public class JobDetailMenu extends Menu {
             "max", String.valueOf(this.ctx.jobManager().maxLevel()),
             "prestige", progress.getPrestige() > 0 ? this.ctx.raw("card.prestige-badge", Map.of("prestige", String.valueOf(progress.getPrestige()))) : ""
          )));
+         icon.lore(this.ctx.text("card.title", Map.of("title", this.ctx.playerJobManager().titleFor(this.jobId, progress.getLevel()))));
+         icon.lore(this.ctx.text("card.earned", Map.of("earned", MoneyFormat.format(progress.getEarned()), "actions", String.format("%,d", progress.getActions()))));
          if (progress.getLevel() >= this.ctx.jobManager().maxLevel()) {
             icon.lore(this.ctx.text("card.maxed"));
          } else {

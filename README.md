@@ -5,6 +5,17 @@ Paper 26.x 用ジョブプラグイン (20職業・レベル・プレステー�
 ## ビルド
 JDK 25 + Maven: `mvn package` → `target/ecojobs-<version>.jar`
 
+## 1.2.0 の新機能
+- **設置ブロック判定の永続化** — 「自分で置いたブロック」の記録をチャンクに保存。再起動や時間経過で消えず、置いた鉱石を掘り直して稼ぐ抜け道を封鎖。ピストン移動、丸石/石/玄武岩ジェネレーターにも対応。
+- **AFK対策** — `anti-farm.afk-seconds`(既定180秒)視点移動・チャット等がないと報酬もクエスト進行も停止。権限 `ecojobs.bypass.afk`。
+- **生涯統計** — 職業ごとの生涯獲得額・行動回数を記録(YAML/MySQL、MySQLは列を自動追加)。GUIとPAPIに表示。
+- **称号** — `job-titles` でレベル帯ごとの称号(見習い→伝説)。職業別の上書きも可能。
+- **レベルアップ演出** — 画面タイトル+パーティクル(マイルストーンは豪華版)。`level-up-effects`。
+- **クエスト連続達成ストリーク** — 毎日全達成で全達成ボーナスが+10%ずつ増加(最大7日分)。
+- **ハッピーアワー** — `scheduled-boosters` で曜日・時間指定の自動ブースター(既定はオフ)。
+- **管理コマンド** — `/jobs setlevel <player> <job> <lv>` / `addxp <player> <job> <xp>` / `resetjob <player> <job|all>`
+- **PAPI追加** — `%ecojobs_title_<job>%` `%ecojobs_earned_<job>%` `%ecojobs_earned_total%` `%ecojobs_actions_<job>%` `%ecojobs_quests_streak%`
+
 ## 1.1.0 の新機能
 - **デイリークエスト** `/jobs quests` — 加入中ジョブから毎日お題 (例: 鉄鉱石を壊す x40)。達成で追加報酬+経験値、全達成でボーナス。`quests.yml` に保存。管理者は `/jobs quests reset <player>`。
 - **XPボスバー** — 経験値獲得時にレベル進行度を表示 (`bossbar`)。

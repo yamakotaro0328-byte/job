@@ -12,7 +12,7 @@ softdepend: [Vault, PlaceholderAPI, EvenMoreFish]
 commands:
   jobs:
     description: Open the jobs menu (or join/leave jobs, see your stats, browse leaderboards, and prestige)
-    usage: /jobs [join|leave|list|stats|top|menu|info|prestige|quests|admin|booster|reload] [args]
+    usage: /jobs [join|leave|list|stats|top|menu|info|prestige|quests|admin|booster|reload|setlevel|addxp|resetjob] [args]
     aliases: [job]
 
 permissions:
@@ -25,9 +25,12 @@ permissions:
   ecojobs.bypass.maxjobs:
     description: Not limited by max-concurrent-jobs in config.yml
     default: false
+  ecojobs.bypass.afk:
+    description: Earns job pay even when idle (anti-farm.afk-seconds)
+    default: false
   ecojobs.bypass.hourlycap:
     description: Not limited by anti-farm.max-money-per-hour in config.yml
     default: false
   ecojobs.admin:
-    description: Can use /jobs reload, /jobs admin, /jobs booster, and /jobs quests reset
+    description: Can use /jobs reload, admin, booster, quests reset, setlevel, addxp, and resetjob
     default: op

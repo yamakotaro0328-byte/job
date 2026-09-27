@@ -47,8 +47,16 @@ public class EcoJobsPlaceholders extends PlaceholderExpansion {
          return switch (parts[1]) {
             case "completed" -> String.valueOf(this.questManager.completedCount(player));
             case "total" -> String.valueOf(this.questManager.questsFor(player).size());
+            case "streak" -> String.valueOf(this.questManager.currentStreak(player.getUniqueId()));
             default -> null;
          };
+      } else if (parts.length == 2 && parts[0].equals("earned") && parts[1].equals("total")) {
+         double total = 0.0;
+         for (PlayerJobProgress progress : this.playerJobManager.allProgress(player.getUniqueId()).values()) {
+            total += progress.getEarned();
+         }
+
+         return MoneyFormat.format(total);
       } else if (parts.length == 2 && parts[0].equals("hourly") && parts[1].equals("earned")) {
          return MoneyFormat.format(this.playerJobManager.hourlyEarned(player.getUniqueId()));
       } else if (parts.length == 3 && parts[0].equals("xp") && parts[1].equals("max")) {
@@ -66,6 +74,9 @@ public class EcoJobsPlaceholders extends PlaceholderExpansion {
                case "level" -> String.valueOf(progress != null ? progress.getLevel() : 0);
                case "xp" -> String.format("%.0f", progress != null ? progress.getXp() : 0.0);
                case "prestige" -> String.valueOf(progress != null ? progress.getPrestige() : 0);
+               case "earned" -> MoneyFormat.format(progress != null ? progress.getEarned() : 0.0);
+               case "actions" -> String.valueOf(progress != null ? progress.getActions() : 0L);
+               case "title" -> progress != null ? this.playerJobManager.titleFor(jobId, progress.getLevel()) : "";
                default -> null;
             };
          }

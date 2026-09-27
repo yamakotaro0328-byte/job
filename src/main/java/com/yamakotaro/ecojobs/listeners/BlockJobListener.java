@@ -15,7 +15,12 @@ import org.bukkit.block.data.Ageable;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.block.BlockFace;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockFormEvent;
+import org.bukkit.event.block.BlockPistonExtendEvent;
+import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerHarvestBlockEvent;
 import org.bukkit.inventory.ItemStack;
@@ -66,6 +71,36 @@ public class BlockJobListener implements Listener {
             this.applyDoubleDrop(event, player, block, "farmer");
             this.jobs.reward(player, "farmer", "harvest-tall-plant", type.name(), 1.0);
          }
+      }
+   }
+
+   /** Blocks pushed by pistons keep (and gain) the placed mark at their new position. */
+   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+   public void onPistonExtend(BlockPistonExtendEvent event) {
+      this.markMoved(event.getBlocks(), event.getDirection());
+   }
+
+   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+   public void onPistonRetract(BlockPistonRetractEvent event) {
+      this.markMoved(event.getBlocks(), event.getDirection());
+   }
+
+   private void markMoved(List<Block> blocks, BlockFace direction) {
+      for (Block block : blocks) {
+         this.placedBlocks.wasPlaced(block);
+      }
+
+      for (Block block : blocks) {
+         this.placedBlocks.markPlaced(block.getRelative(direction));
+      }
+   }
+
+   /** Cobblestone/stone/basalt generators: blocks formed by lava+water count as placed. */
+   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+   public void onBlockForm(BlockFormEvent event) {
+      Material formed = event.getNewState().getType();
+      if (formed == Material.COBBLESTONE || formed == Material.STONE || formed == Material.BASALT || formed == Material.OBSIDIAN) {
+         this.placedBlocks.markPlaced(event.getBlock());
       }
    }
 

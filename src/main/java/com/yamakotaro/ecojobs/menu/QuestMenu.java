@@ -28,6 +28,10 @@ public class QuestMenu extends Menu {
             "bar", Layout.bar(done, list.size(), 12),
             "reset", Layout.duration(quests.millisUntilReset())
          )))
+         .lore(this.ctx.text("quests.streak", Map.of(
+            "days", String.valueOf(quests.currentStreak(this.viewer.getUniqueId())),
+            "bonus", String.format("%.0f", (quests.streakMultiplier(quests.currentStreak(this.viewer.getUniqueId()) + 1) - 1.0) * 100.0)
+         )))
          .build());
 
       if (!quests.isEnabled()) {
@@ -48,7 +52,7 @@ public class QuestMenu extends Menu {
       this.set(40, Icon.of(allDone ? Material.ENDER_CHEST : Material.CHEST)
          .glow(allDone)
          .name(this.ctx.text(allDone ? "quests.bonus-claimed" : "quests.bonus"))
-         .lore(this.ctx.lines("quests.bonus-lore", Map.of("money", MoneyFormat.format(quests.allCompleteBonus()))))
+         .lore(this.ctx.lines("quests.bonus-lore", Map.of("money", MoneyFormat.format(quests.allCompleteBonus() * quests.streakMultiplier(quests.currentStreak(this.viewer.getUniqueId()) + (allDone ? 0 : 1))))))
          .build());
       this.backButton(36, () -> new HubMenu(this.ctx, this.viewer).open());
       this.closeButton(44);
