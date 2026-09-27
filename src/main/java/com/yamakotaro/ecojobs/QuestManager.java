@@ -65,6 +65,23 @@ public class QuestManager {
       }
    }
 
+   /** Milliseconds until the daily quests roll over. */
+   public long millisUntilReset() {
+      ZoneId zone;
+      try {
+         zone = ZoneId.of(this.cfg().getString("reset-timezone", "Asia/Tokyo"));
+      } catch (Exception var3) {
+         zone = ZoneId.systemDefault();
+      }
+
+      long next = LocalDate.now(zone).plusDays(1L).atStartOfDay(zone).toInstant().toEpochMilli();
+      return Math.max(0L, next - System.currentTimeMillis());
+   }
+
+   public double allCompleteBonus() {
+      return this.cfg().getDouble("all-complete-bonus-money", 500.0);
+   }
+
    /** Returns today's quests for the player, generating a new set if the day rolled over. */
    public List<Quest> questsFor(Player player) {
       if (!this.isEnabled()) {
@@ -178,7 +195,7 @@ public class QuestManager {
       }
 
       if (completedAny && list.stream().allMatch(q -> q.completed)) {
-         double bonus = this.cfg().getDouble("all-complete-bonus-money", 500.0);
+         double bonus = this.allCompleteBonus();
          this.playerJobManager.grantBonus(player, null, bonus, 0.0);
          player.sendMessage(this.messages.get("quests.all-completed", Map.of("money", MoneyFormat.format(bonus))));
       }

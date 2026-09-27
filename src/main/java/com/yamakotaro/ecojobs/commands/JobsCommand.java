@@ -12,8 +12,10 @@ import com.yamakotaro.ecojobs.PlayerJobManager;
 import com.yamakotaro.ecojobs.QuestManager;
 import com.yamakotaro.ecojobs.PlayerJobProgress;
 import com.yamakotaro.ecojobs.TabCompleteUtil;
-import com.yamakotaro.ecojobs.menu.AdminMenuHolder;
-import com.yamakotaro.ecojobs.menu.HubMenuHolder;
+import com.yamakotaro.ecojobs.menu.AdminMenu;
+import com.yamakotaro.ecojobs.menu.HubMenu;
+import com.yamakotaro.ecojobs.menu.MenuContext;
+import com.yamakotaro.ecojobs.menu.QuestMenu;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,6 +40,7 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
    private final BoosterManager boosterManager;
    private final Messages messages;
    private final QuestManager questManager;
+   private final MenuContext menuContext;
    private static final int CHAT_PAGE_SIZE = 8;
 
    public JobsCommand(
@@ -47,9 +50,11 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
       JobOverrides jobOverrides,
       BoosterManager boosterManager,
       Messages messages,
-      QuestManager questManager
+      QuestManager questManager,
+      MenuContext menuContext
    ) {
       this.questManager = questManager;
+      this.menuContext = menuContext;
       this.plugin = plugin;
       this.jobManager = jobManager;
       this.playerJobManager = playerJobManager;
@@ -446,9 +451,7 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
          if (!player.hasPermission("ecojobs.use")) {
             player.sendMessage(this.messages.get("general.no-permission", Map.of()));
          } else {
-            HubMenuHolder holder = new HubMenuHolder(this.messages);
-            holder.render(player.hasPermission("ecojobs.admin"), this.boosterManager);
-            player.openInventory(holder.getInventory());
+            new HubMenu(this.menuContext, player).open();
          }
       } else {
          sender.sendMessage(this.messages.get("general.players-only", Map.of()));
@@ -460,9 +463,7 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
          if (!player.hasPermission("ecojobs.admin")) {
             player.sendMessage(this.messages.get("general.no-permission", Map.of()));
          } else {
-            AdminMenuHolder holder = new AdminMenuHolder(this.messages);
-            holder.render(this.jobManager, this.jobOverrides, this.boosterManager);
-            player.openInventory(holder.getInventory());
+            new AdminMenu(this.menuContext, player, 0).open();
          }
       } else {
          sender.sendMessage(this.messages.get("general.players-only", Map.of()));
@@ -626,21 +627,7 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
          } else if (!this.questManager.isEnabled()) {
             player.sendMessage(this.messages.get("quests.disabled", Map.of()));
          } else {
-            List<QuestManager.Quest> quests = this.questManager.questsFor(player);
-            if (quests.isEmpty()) {
-               player.sendMessage(this.messages.get("quests.none", Map.of()));
-               return;
-            }
-
-            player.sendMessage(
-               this.messages.get("quests.header", Map.of("completed", String.valueOf(this.questManager.completedCount(player)), "total", String.valueOf(quests.size())))
-            );
-
-            for (QuestManager.Quest quest : quests) {
-               player.sendMessage(this.messages.get(quest.completed ? "quests.line-done" : "quests.line", this.questManager.placeholders(quest)));
-            }
-
-            player.sendMessage(this.messages.get("quests.footer", Map.of()));
+            new QuestMenu(this.menuContext, player).open();
          }
       } else {
          sender.sendMessage(this.messages.get("general.players-only", Map.of()));

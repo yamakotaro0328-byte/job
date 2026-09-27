@@ -248,11 +248,7 @@ public class PlayerJobManager {
 
    private void applyReward(Player player, JobDefinition job, PlayerJobProgress progress, double baseMoney, double baseXp) {
       int effectiveLevel = this.perkManager.effectiveLevel(progress);
-      double levelMultiplier = 1.0
-         + progress.getLevel() * this.jobManager.payBonusPerLevel()
-         + progress.getPrestige() * this.jobManager.prestigeBonusPerPrestige()
-         + this.perkManager.payBonusMultiplier(job, effectiveLevel);
-      double money = baseMoney * levelMultiplier * this.jobOverrides.payMultiplier(job.getId()) * this.boosterManager.moneyMultiplierFor(job.getId());
+      double money = baseMoney * this.moneyMultiplier(job, progress);
       double xp = baseXp * this.boosterManager.xpMultiplierFor(job.getId());
       money = this.applyHourlyCap(player, money);
       if (money > 0.0) {
@@ -354,6 +350,34 @@ public class PlayerJobManager {
 
          Bukkit.dispatchCommand(Bukkit.getConsoleSender(), resolved);
       }
+   }
+
+   /** Total multiplier applied to a job's base pay: level + prestige + perks, admin override, and boosters. */
+   public double moneyMultiplier(JobDefinition job, PlayerJobProgress progress) {
+      int level = progress == null ? 0 : progress.getLevel();
+      int prestige = progress == null ? 0 : progress.getPrestige();
+      int effectiveLevel = progress == null ? 0 : this.perkManager.effectiveLevel(progress);
+      double levelMultiplier = 1.0
+         + level * this.jobManager.payBonusPerLevel()
+         + prestige * this.jobManager.prestigeBonusPerPrestige()
+         + this.perkManager.payBonusMultiplier(job, effectiveLevel);
+      return levelMultiplier * this.jobOverrides.payMultiplier(job.getId()) * this.boosterManager.moneyMultiplierFor(job.getId());
+   }
+
+   /** 1-based leaderboard rank of the player in the job, or 0 if they have no progress in it. */
+   public int rankOf(String jobId, UUID uuid) {
+      List<PlayerJobManager.TopEntry> sorted = this.sortedTop(jobId);
+      for (int i = 0; i < sorted.size(); i++) {
+         if (sorted.get(i).uuid().equals(uuid)) {
+            return i + 1;
+         }
+      }
+
+      return 0;
+   }
+
+   public int rankedCount(String jobId) {
+      return this.sortedTop(jobId).size();
    }
 
    private void queueEarnedActionBar(UUID uuid, String jobId, double money) {

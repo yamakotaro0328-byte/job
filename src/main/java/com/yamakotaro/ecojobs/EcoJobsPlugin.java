@@ -7,9 +7,8 @@ import com.yamakotaro.ecojobs.listeners.EntityJobListener;
 import com.yamakotaro.ecojobs.listeners.EvenMoreFishBridge;
 import com.yamakotaro.ecojobs.listeners.ExplorerListener;
 import com.yamakotaro.ecojobs.listeners.TradeJobListener;
-import com.yamakotaro.ecojobs.menu.AdminMenuListener;
-import com.yamakotaro.ecojobs.menu.HubMenuListener;
-import com.yamakotaro.ecojobs.menu.JobsMenuListener;
+import com.yamakotaro.ecojobs.menu.MenuContext;
+import com.yamakotaro.ecojobs.menu.MenuListener;
 import com.yamakotaro.ecojobs.storage.JobStorage;
 import com.yamakotaro.ecojobs.storage.MySqlJobStorage;
 import com.yamakotaro.ecojobs.storage.YamlJobStorage;
@@ -33,6 +32,7 @@ public class EcoJobsPlugin extends JavaPlugin {
    private YamlConfiguration config;
    private QuestManager questManager;
    private JobBossBar bossBar;
+   private MenuContext menuContext;
 
    public void onEnable() {
       this.saveDefaultConfig();
@@ -61,14 +61,9 @@ public class EcoJobsPlugin extends JavaPlugin {
       this.getServer().getPluginManager().registerEvents(new CraftingJobListener(this.playerJobManager), this);
       this.getServer().getPluginManager().registerEvents(new TradeJobListener(this.playerJobManager), this);
       this.getServer().getPluginManager().registerEvents(new ExplorerListener(this.playerJobManager), this);
-      this.getServer()
-         .getPluginManager()
-         .registerEvents(new JobsMenuListener(jobManager, this.playerJobManager, jobOverrides, boosterManager, perkManager, messages), this);
-      this.getServer()
-         .getPluginManager()
-         .registerEvents(new AdminMenuListener(jobManager, this.playerJobManager, jobOverrides, boosterManager, messages), this);
-      this.getServer().getPluginManager().registerEvents(new HubMenuListener(jobManager, this.playerJobManager, jobOverrides, boosterManager, messages), this);
-      JobsCommand jobsCommand = new JobsCommand(this, jobManager, this.playerJobManager, jobOverrides, boosterManager, messages, this.questManager);
+      this.menuContext = new MenuContext(this, jobManager, this.playerJobManager, jobOverrides, boosterManager, perkManager, this.questManager, messages);
+      this.getServer().getPluginManager().registerEvents(new MenuListener(), this);
+      JobsCommand jobsCommand = new JobsCommand(this, jobManager, this.playerJobManager, jobOverrides, boosterManager, messages, this.questManager, this.menuContext);
       this.getCommand("jobs").setExecutor(jobsCommand);
       this.getCommand("jobs").setTabCompleter(jobsCommand);
       if (this.getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
@@ -129,6 +124,10 @@ public class EcoJobsPlugin extends JavaPlugin {
             }
          }
       }
+   }
+
+   public MenuContext menuContext() {
+      return this.menuContext;
    }
 
    public YamlConfiguration config() {

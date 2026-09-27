@@ -12,4 +12,5 @@ JDK 25 + Maven: `mvn package` → `target/ecojobs-<version>.jar`
 - **放置トラップ対策** — スポナー等の湧き方別の報酬倍率 (`anti-farm.spawn-reason-multipliers`)。
 - **時間あたり稼ぎ上限** — `anti-farm.max-money-per-hour` (権限 `ecojobs.bypass.hourlycap` で無視)。
 - **PAPI** — `%ecojobs_quests_completed%` `%ecojobs_quests_total%` `%ecojobs_hourly_earned%`
+- **GUI全面リニューアル** — ハブ(プロフィール・就業中の職業・クエスト・ランキング)、フィルター付き職業一覧、報酬/パークのタブ付き詳細(「あなたの報酬」を倍率込みで表示)、表彰台つきランキング、クエスト画面、プレステージ確認(ビフォー/アフター表示)、管理パネル。アイテム名はクライアント言語で自動翻訳、斜体・攻撃力表示などのノイズを除去、シフトクリック/ドラッグでのアイテム持ち出しを完全防止。文言は `messages.<言語>.gui`、職業アイコンは `job-icons` で変更可能。
 - 旧バージョンの config.yml でも、新しい設定・メッセージは同梱デフォルトで自動補完されます。
