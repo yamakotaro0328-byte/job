@@ -107,7 +107,7 @@ anti-farm:
     SPAWNER_EGG: 0.0
     SLIME_SPLIT: 0.25
     BUILD_IRONGOLEM: 0.0
-    BUILD_SNOW_GOLEM: 0.0
+    BUILD_SNOWMAN: 0.0
     BUILD_WITHER: 1.0
   # Max money one player can earn from job actions per clock hour (0 = unlimited). Job xp is
   # never capped; daily-quest bonuses bypass it. ecojobs.bypass.hourlycap skips it.
