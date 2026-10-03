@@ -51,6 +51,21 @@ public class PlayerJobData {
       return this.announcedMilestones;
    }
 
+   /** Deep copy, so storage can serialize it on another thread while the main thread keeps mutating the original. */
+   public PlayerJobData copy() {
+      PlayerJobData copy = new PlayerJobData(this.name);
+      for (java.util.Map.Entry<String, PlayerJobProgress> entry : this.progress.entrySet()) {
+         copy.progress.put(entry.getKey(), entry.getValue().copy());
+      }
+
+      copy.joined.addAll(this.joined);
+      copy.explorerDistanceByWorld.putAll(this.explorerDistanceByWorld);
+      copy.announcedMilestones.addAll(this.announcedMilestones);
+      copy.soundEnabled = this.soundEnabled;
+      copy.actionBarEnabled = this.actionBarEnabled;
+      return copy;
+   }
+
    public boolean isSoundEnabled() {
       return this.soundEnabled;
    }

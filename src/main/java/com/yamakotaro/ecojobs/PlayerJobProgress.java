@@ -58,4 +58,11 @@ public class PlayerJobProgress {
    public void setActions(long actions) {
       this.actions = actions;
    }
+
+   public PlayerJobProgress copy() {
+      PlayerJobProgress copy = new PlayerJobProgress(this.level, this.xp, this.prestige);
+      copy.earned = this.earned;
+      copy.actions = this.actions;
+      return copy;
+   }
 }

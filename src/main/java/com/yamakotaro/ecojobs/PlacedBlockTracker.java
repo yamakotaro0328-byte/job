@@ -76,7 +76,11 @@ public class PlacedBlockTracker {
 
    /** Chunk-local x/z (4 bits each) + y offset (supports y from -2048 to 2047). */
    private static int pack(Block block) {
-      return (block.getX() & 15) | (block.getZ() & 15) << 4 | (block.getY() + 2048) << 8;
+      return pack(block.getX(), block.getY(), block.getZ());
+   }
+
+   static int pack(int x, int y, int z) {
+      return (x & 15) | (z & 15) << 4 | (y + 2048) << 8;
    }
 
    private record BlockKey(UUID world, int x, int y, int z) {

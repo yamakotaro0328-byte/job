@@ -5,7 +5,10 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 public final class YamlIo {
@@ -35,6 +38,15 @@ public final class YamlIo {
          parent.mkdirs();
       }
 
-      Files.writeString(file.toPath(), config.saveToString(), StandardCharsets.UTF_8);
+      // Write to a sibling temp file and swap it in, so a crash mid-write never leaves a
+      // truncated player-jobs.yml behind.
+      Path target = file.toPath();
+      Path temp = target.resolveSibling(file.getName() + ".tmp");
+      Files.writeString(temp, config.saveToString(), StandardCharsets.UTF_8);
+      try {
+         Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+      } catch (AtomicMoveNotSupportedException var5) {
+         Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+      }
    }
 }

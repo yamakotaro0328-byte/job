@@ -1,6 +1,7 @@
 package com.yamakotaro.ecojobs.listeners;
 
 import com.yamakotaro.ecojobs.PlayerJobManager;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -24,7 +25,8 @@ public class ExplorerListener implements Listener {
          Location to = event.getTo();
          if (to != null && (from.getBlockX() != to.getBlockX() || from.getBlockZ() != to.getBlockZ())) {
             Player player = event.getPlayer();
-            if (!player.isGliding() && !player.isInsideVehicle()) {
+            // Elytra, mounts, creative flight and spectator cover ground far too fast to count as exploring.
+            if (!player.isGliding() && !player.isInsideVehicle() && !player.isFlying() && player.getGameMode() != GameMode.SPECTATOR) {
                if (this.jobs.isJoined(player.getUniqueId(), "explorer")) {
                   Location spawn = player.getWorld().getSpawnLocation();
                   double dx = to.getX() - spawn.getX();

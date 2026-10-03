@@ -106,8 +106,12 @@ public class QuestManager {
 
    /** All-clear bonus multiplier: +streak-bonus-per-day for each consecutive day after the first, capped. */
    public double streakMultiplier(int streak) {
-      int counted = Math.min(Math.max(0, streak - 1), Math.max(0, this.cfg().getInt("streak-max-days", 7)));
-      return 1.0 + counted * this.cfg().getDouble("streak-bonus-per-day", 0.1);
+      return streakMultiplier(streak, this.cfg().getDouble("streak-bonus-per-day", 0.1), this.cfg().getInt("streak-max-days", 7));
+   }
+
+   static double streakMultiplier(int streak, double bonusPerDay, int maxDays) {
+      int counted = Math.min(Math.max(0, streak - 1), Math.max(0, maxDays));
+      return 1.0 + counted * bonusPerDay;
    }
 
    public double allCompleteBonus() {

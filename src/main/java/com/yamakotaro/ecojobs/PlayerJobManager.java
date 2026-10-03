@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.Map.Entry;
 import net.milkbowl.vault.economy.Economy;
 import java.time.Duration;
@@ -41,6 +44,12 @@ public class PlayerJobManager {
    private JobBossBar bossBar;
    private ActivityTracker activityTracker;
    private final Set<UUID> afkWarned = new HashSet<>();
+   /** One thread so saves never overlap; snapshots are taken on the main thread first. */
+   private final ExecutorService saveExecutor = Executors.newSingleThreadExecutor(runnable -> {
+      Thread thread = new Thread(runnable, "EcoJobs-save");
+      thread.setDaemon(true);
+      return thread;
+   });
 
    public PlayerJobManager(
       EcoJobsPlugin plugin,
@@ -218,6 +227,10 @@ public class PlayerJobManager {
 
    /** Same as {@link #reward(Player, String, String, String, double)}, with the money scaled by payMultiplier (anti-farm). */
    public void reward(Player player, String jobId, String actionType, String key, double scale, double payMultiplier) {
+      if (this.isWorldDisabled(player)) {
+         return;
+      }
+
       JobDefinition job = this.jobManager.get(jobId);
       if (job != null) {
          ActionReward actionReward = job.getReward(actionType, key);
@@ -234,6 +247,10 @@ public class PlayerJobManager {
    }
 
    public void checkExplorerMilestones(Player player, String worldName, double currentDistance) {
+      if (this.isWorldDisabled(player)) {
+         return;
+      }
+
       JobDefinition explorer = this.jobManager.get("explorer");
       if (explorer != null) {
          PlayerJobProgress progress = this.joinedJobs(player.getUniqueId()).get("explorer");
@@ -380,6 +397,26 @@ public class PlayerJobManager {
       }
    }
 
+   /** disabled-worlds in config.yml: no pay, xp or quest progress in these worlds (minigame/creative worlds). */
+   public boolean isWorldDisabled(Player player) {
+      List<String> disabled = this.plugin.config().getStringList("disabled-worlds");
+      return !disabled.isEmpty() && disabled.contains(player.getWorld().getName());
+   }
+
+   /** Updates the stored name so leaderboards and /jobs stats follow account renames. */
+   public void refreshName(Player player) {
+      PlayerJobData playerData = this.data.get(player.getUniqueId());
+      if (playerData != null && !player.getName().equals(playerData.getName())) {
+         playerData.setName(player.getName());
+         this.markDirty(player.getUniqueId());
+      }
+   }
+
+   public void forgetSession(UUID uuid) {
+      this.afkWarned.remove(uuid);
+      this.pendingEarnings.remove(uuid);
+   }
+
    /** Total multiplier applied to a job's base pay: level + prestige + perks, admin override, and boosters. */
    public double moneyMultiplier(JobDefinition job, PlayerJobProgress progress) {
       int level = progress == null ? 0 : progress.getLevel();
@@ -440,16 +477,26 @@ public class PlayerJobManager {
          return "";
       }
 
+      Map<String, String> titles = new HashMap<>();
+      for (String key : section.getKeys(false)) {
+         titles.put(key, section.getString(key, ""));
+      }
+
+      return pickTitle(titles, level);
+   }
+
+   /** Highest-keyed title at or below the level; keys that aren't numbers are ignored. */
+   static String pickTitle(Map<String, String> titles, int level) {
       String best = "";
       int bestLevel = Integer.MIN_VALUE;
-      for (String key : section.getKeys(false)) {
+      for (Entry<String, String> entry : titles.entrySet()) {
          try {
-            int at = Integer.parseInt(key);
+            int at = Integer.parseInt(entry.getKey().trim());
             if (at <= level && at > bestLevel) {
                bestLevel = at;
-               best = section.getString(key, "");
+               best = entry.getValue();
             }
-         } catch (NumberFormatException var9) {
+         } catch (NumberFormatException var7) {
          }
       }
 
@@ -670,15 +717,41 @@ public class PlayerJobManager {
       this.dirtyUuids.add(uuid);
    }
 
+   /**
+    * Periodic save: copies the data on the main thread (cheap) and hands the copy to the save
+    * thread, so disk/MySQL latency never stalls ticks. Previously a slow MySQL round-trip every
+    * five minutes was paid for by every player on the server.
+    */
    public void save() {
       if (!this.dirtyUuids.isEmpty()) {
-         this.storage.saveAll(this.data, this.dirtyUuids);
+         Map<UUID, PlayerJobData> snapshot = this.snapshot();
+         Set<UUID> dirty = Set.copyOf(this.dirtyUuids);
          this.dirtyUuids.clear();
+         this.saveExecutor.execute(() -> this.storage.saveAll(snapshot, dirty));
       }
    }
 
+   private Map<UUID, PlayerJobData> snapshot() {
+      Map<UUID, PlayerJobData> snapshot = new HashMap<>(this.data.size() * 2);
+      for (Entry<UUID, PlayerJobData> entry : this.data.entrySet()) {
+         snapshot.put(entry.getKey(), entry.getValue().copy());
+      }
+
+      return snapshot;
+   }
+
+   /** Shutdown: queue the final save, then wait for the save thread to drain before closing storage. */
    public void close() {
       this.save();
+      this.saveExecutor.shutdown();
+      try {
+         if (!this.saveExecutor.awaitTermination(30L, TimeUnit.SECONDS)) {
+            this.plugin.getLogger().warning("Timed out waiting for the final EcoJobs save - some progress may not have been written.");
+         }
+      } catch (InterruptedException var2) {
+         Thread.currentThread().interrupt();
+      }
+
       if (this.questManager != null) {
          this.questManager.save();
       }

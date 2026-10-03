@@ -5,7 +5,14 @@ Paper 26.x 用ジョブプラグイン (20職業・レベル・プレステー�
 ## ビルド
 JDK 25 + Maven: `mvn package` → `target/ecojobs-<version>.jar`
 
+## 開発
+- `mvn package` でテスト実行+ビルド。GitHub Actions (`.github/workflows/build.yml`) が push ごとにビルドして jar を artifact に残します。
+- 変更履歴は `CHANGELOG.md`。
+
 ## 1.2.0 の新機能
+- **設定検証** — 起動時と `/jobs reload` で、存在しない素材名・モブ名・パーク・ポーション効果を警告(無言で報酬が出ない事故を防止)。
+- **非同期保存** — 保存処理をメインスレッドから分離、YAMLはアトミック書き込み。
+- **`disabled-worlds`** — 報酬・クエストを止めるワールド。
 - **設置ブロック判定の永続化** — 「自分で置いたブロック」の記録をチャンクに保存。再起動や時間経過で消えず、置いた鉱石を掘り直して稼ぐ抜け道を封鎖。ピストン移動、丸石/石/玄武岩ジェネレーターにも対応。
 - **AFK対策** — `anti-farm.afk-seconds`(既定180秒)視点移動・チャット等がないと報酬もクエスト進行も停止。権限 `ecojobs.bypass.afk`。
 - **生涯統計** — 職業ごとの生涯獲得額・行動回数を記録(YAML/MySQL、MySQLは列を自動追加)。GUIとPAPIに表示。

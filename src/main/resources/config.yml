@@ -7,6 +7,10 @@ language: ja
 # (日本語) 1人のプレイヤーが同時に加入できるジョブ数。
 max-concurrent-jobs: 3
 
+# Worlds where jobs pay nothing (and quests don't progress) - e.g. creative or minigame worlds.
+# (日本語) ジョブの報酬が一切出ないワールド(クリエイティブやミニゲーム用など)。
+disabled-worlds: []
+
 # Where job progress is saved. "yaml" (default) needs no setup. "mysql" shares progress across
 # multiple servers pointed at the same database - fill in storage.mysql below.
 # (日本語) ジョブの進行状況の保存先。"yaml"(デフォルト)は設定不要。"mysql"にすると、
@@ -103,7 +107,7 @@ anti-farm:
     SPAWNER_EGG: 0.0
     SLIME_SPLIT: 0.25
     BUILD_IRONGOLEM: 0.0
-    BUILD_SNOWMAN: 0.0
+    BUILD_SNOW_GOLEM: 0.0
     BUILD_WITHER: 1.0
   # Max money one player can earn from job actions per clock hour (0 = unlimited). Job xp is
   # never capped; daily-quest bonuses bypass it. ecojobs.bypass.hourlycap skips it.
@@ -413,7 +417,7 @@ jobs:
     actions:
       breed-entity:
         COW: { money: 8, xp: 5 }
-        MUSHROOM_COW: { money: 8, xp: 5 }
+        MOOSHROOM: { money: 8, xp: 5 }
         SHEEP: { money: 8, xp: 5 }
         PIG: { money: 8, xp: 5 }
         CHICKEN: { money: 6, xp: 4 }
@@ -444,8 +448,8 @@ jobs:
     actions:
       shear-entity:
         SHEEP: { money: 3, xp: 2 }
-        MUSHROOM_COW: { money: 5, xp: 3 }
-        SNOWMAN: { money: 2, xp: 1 }
+        MOOSHROOM: { money: 5, xp: 3 }
+        SNOW_GOLEM: { money: 2, xp: 1 }
         default: { money: 3, xp: 2 }
 
   beekeeper:
@@ -495,6 +499,7 @@ messages:
       no-permission: "&cYou don't have permission to do that."
       player-not-found: "&cPlayer '{player}' not found."
       reloaded: "&aEcoJobs config reloaded."
+      reload-problems: "&e{count} problem(s) found in config.yml - see the console for the full list:"
     jobs:
       usage: "&cUsage: /jobs <join|leave|list|stats|top|menu|info|prestige|quests|admin|booster|reload|setlevel|addxp|resetjob> [args]"
       page-footer: "&7--- Page {page}/{pages} - add a page number to see more ---"
@@ -815,6 +820,7 @@ messages:
       no-permission: "&cこの操作を行う権限がありません。"
       player-not-found: "&cプレイヤー「{player}」が見つかりません。"
       reloaded: "&aEcoJobsの設定を再読み込みしました。"
+      reload-problems: "&econfig.yml に{count}件の問題があります(全文はコンソールを参照):"
     jobs:
       usage: "&c使い方: /jobs <join|leave|list|stats|top|menu|info|prestige|quests|admin|booster|reload|setlevel|addxp|resetjob> [引数]"
       page-footer: "&7--- {page}/{pages}ページ - ページ番号を指定すると続きが見られます ---"

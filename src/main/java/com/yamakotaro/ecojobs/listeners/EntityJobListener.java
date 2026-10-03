@@ -97,6 +97,15 @@ public class EntityJobListener implements Listener {
          return true;
       } else {
          long now = System.currentTimeMillis();
+         if (this.recentPlayerKills.size() > 256) {
+            // Keep the map bounded on busy PvP servers: drop every expired entry, then empty killers.
+            for (Map<UUID, Long> entries : this.recentPlayerKills.values()) {
+               entries.entrySet().removeIf(entry -> now - entry.getValue() >= cooldownMillis);
+            }
+
+            this.recentPlayerKills.values().removeIf(Map::isEmpty);
+         }
+
          Map<UUID, Long> victims = this.recentPlayerKills.computeIfAbsent(killer, k -> new HashMap<>());
          victims.entrySet().removeIf(entry -> now - entry.getValue() >= cooldownMillis);
          if (victims.containsKey(victim)) {

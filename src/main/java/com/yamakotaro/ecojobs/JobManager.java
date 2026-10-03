@@ -17,8 +17,20 @@ public class JobManager {
       this.load();
    }
 
+   private List<String> problems = List.of();
+
+   /** Problems found in config.yml by the last {@link #load()}; empty when everything checks out. */
+   public List<String> problems() {
+      return this.problems;
+   }
+
    public void load() {
       this.jobs.clear();
+      this.problems = ConfigValidator.validate(this.plugin.config());
+      for (String problem : this.problems) {
+         this.plugin.getLogger().warning("config.yml: " + problem);
+      }
+
       ConfigurationSection jobsSection = this.plugin.config().getConfigurationSection("jobs");
       if (jobsSection != null) {
          for (String jobId : jobsSection.getKeys(false)) {

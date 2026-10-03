@@ -6,6 +6,7 @@ import com.yamakotaro.ecojobs.listeners.CraftingJobListener;
 import com.yamakotaro.ecojobs.listeners.EntityJobListener;
 import com.yamakotaro.ecojobs.listeners.EvenMoreFishBridge;
 import com.yamakotaro.ecojobs.listeners.ExplorerListener;
+import com.yamakotaro.ecojobs.listeners.PlayerSessionListener;
 import com.yamakotaro.ecojobs.listeners.TradeJobListener;
 import com.yamakotaro.ecojobs.menu.MenuContext;
 import com.yamakotaro.ecojobs.menu.MenuListener;
@@ -33,6 +34,7 @@ public class EcoJobsPlugin extends JavaPlugin {
    private QuestManager questManager;
    private JobBossBar bossBar;
    private MenuContext menuContext;
+   private PerkManager perkManager;
 
    public void onEnable() {
       this.saveDefaultConfig();
@@ -44,6 +46,7 @@ public class EcoJobsPlugin extends JavaPlugin {
       JobOverrides jobOverrides = new JobOverrides(this);
       BoosterManager boosterManager = new BoosterManager();
       PerkManager perkManager = new PerkManager(this, jobManager);
+      this.perkManager = perkManager;
       JobStorage storage = (JobStorage)("mysql".equalsIgnoreCase(this.config().getString("storage.type", "yaml"))
          ? new MySqlJobStorage(this)
          : new YamlJobStorage(this));
@@ -64,6 +67,7 @@ public class EcoJobsPlugin extends JavaPlugin {
       this.getServer().getPluginManager().registerEvents(new CraftingJobListener(this.playerJobManager), this);
       this.getServer().getPluginManager().registerEvents(new TradeJobListener(this.playerJobManager), this);
       this.getServer().getPluginManager().registerEvents(new ExplorerListener(this.playerJobManager), this);
+      this.getServer().getPluginManager().registerEvents(new PlayerSessionListener(this.playerJobManager), this);
       this.menuContext = new MenuContext(this, jobManager, this.playerJobManager, jobOverrides, boosterManager, perkManager, this.questManager, messages);
       this.getServer().getPluginManager().registerEvents(new MenuListener(), this);
       JobsCommand jobsCommand = new JobsCommand(this, jobManager, this.playerJobManager, jobOverrides, boosterManager, messages, this.questManager, this.menuContext);
@@ -112,7 +116,7 @@ public class EcoJobsPlugin extends JavaPlugin {
             return;
          }
 
-         for (String path : List.of("quests", "bossbar", "reward-commands", "anti-farm.spawn-reason-multipliers", "anti-farm.max-money-per-hour", "anti-farm.afk-seconds", "job-titles", "level-up-effects", "scheduled-boosters")) {
+         for (String path : List.of("quests", "bossbar", "reward-commands", "anti-farm.spawn-reason-multipliers", "anti-farm.max-money-per-hour", "anti-farm.afk-seconds", "job-titles", "level-up-effects", "scheduled-boosters", "disabled-worlds")) {
             if (!this.config.isSet(path) && bundled.isSet(path)) {
                this.config.set(path, bundled.get(path));
             }
@@ -128,6 +132,10 @@ public class EcoJobsPlugin extends JavaPlugin {
             }
          }
       }
+   }
+
+   public PerkManager perkManager() {
+      return this.perkManager;
    }
 
    public MenuContext menuContext() {

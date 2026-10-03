@@ -25,6 +25,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.Map.Entry;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -669,7 +670,15 @@ public class JobsCommand implements CommandExecutor, TabCompleter {
       } else {
          this.plugin.reloadPluginConfig();
          this.jobManager.load();
+         this.plugin.perkManager().load();
          sender.sendMessage(this.messages.get("general.reloaded", Map.of()));
+         List<String> problems = this.jobManager.problems();
+         if (!problems.isEmpty()) {
+            sender.sendMessage(this.messages.get("general.reload-problems", Map.of("count", String.valueOf(problems.size()))));
+            for (String problem : problems.subList(0, Math.min(5, problems.size()))) {
+               sender.sendMessage(Component.text(" - " + problem, NamedTextColor.GRAY));
+            }
+         }
       }
    }
 
